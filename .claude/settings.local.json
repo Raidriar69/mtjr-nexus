@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx create-next-app@latest . --typescript --tailwind --eslint --app --src-dir --import-alias \"@/*\" --no-git)",
+      "PowerShell(node --version)",
+      "PowerShell(npm --version)",
+      "PowerShell(npx --version)",
+      "Bash(cd /d E:\\\\Site)",
+      "Bash(taskkill /f /im node.exe)",
+      "Bash(npm run *)",
+      "Bash(npm install *)",
+      "Bash(git config *)"
+    ]
+  }
+}
