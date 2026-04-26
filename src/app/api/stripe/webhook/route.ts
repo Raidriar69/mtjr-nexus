@@ -5,7 +5,7 @@ import Product from '@/models/Product';
 import Order from '@/models/Order';
 import { sendOrderConfirmation } from '@/lib/email';
 
-export const config = { api: { bodyParser: false } };
+export const runtime = 'nodejs';
 
 async function completeOrder(orderId: string, productId: string, paymentIntentId: string) {
   const product = await Product.findById(productId).select(
