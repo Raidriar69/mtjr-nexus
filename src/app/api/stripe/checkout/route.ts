@@ -45,8 +45,6 @@ export async function POST(request: NextRequest) {
     });
 
     const stripeSession = await stripe.checkout.sessions.create({
-      // automatic_payment_methods enables cards, Apple Pay, Google Pay, Link, etc.
-      automatic_payment_methods: { enabled: true },
       line_items: [
         {
           price_data: {

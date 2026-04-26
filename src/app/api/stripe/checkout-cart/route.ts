@@ -74,7 +74,6 @@ export async function POST(request: NextRequest) {
     }));
 
     const stripeSession = await stripe.checkout.sessions.create({
-      automatic_payment_methods: { enabled: true },
       line_items: lineItems,
       mode: 'payment',
       customer_email: buyerEmail,
