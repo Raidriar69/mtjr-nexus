@@ -9,7 +9,10 @@
       "Bash(taskkill /f /im node.exe)",
       "Bash(npm run *)",
       "Bash(npm install *)",
-      "Bash(git config *)"
+      "Bash(git config *)",
+      "Bash(git init *)",
+      "Bash(git add *)",
+      "Bash(git commit *)"
     ]
   }
 }
