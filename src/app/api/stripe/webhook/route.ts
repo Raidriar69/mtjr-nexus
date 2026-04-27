@@ -1,46 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe';
 import { connectDB } from '@/lib/mongodb';
-import Product from '@/models/Product';
 import Order from '@/models/Order';
-import { sendOrderConfirmation } from '@/lib/email';
+import { completeOrder } from '@/lib/orderCompletion';
 
 export const runtime = 'nodejs';
-
-async function completeOrder(orderId: string, productId: string, paymentIntentId: string) {
-  const product = await Product.findById(productId).select(
-    '+accountEmail +accountPassword +accountInstructions'
-  );
-  if (!product) return;
-
-  await Product.findByIdAndUpdate(productId, { isSold: true });
-
-  const order = await Order.findByIdAndUpdate(
-    orderId,
-    {
-      status: 'completed',
-      stripePaymentIntentId: paymentIntentId,
-      deliveryDetails: {
-        email: product.accountEmail,
-        password: product.accountPassword,
-        instructions: product.accountInstructions,
-      },
-    },
-    { new: true }
-  );
-
-  if (order) {
-    sendOrderConfirmation(order.buyerEmail, {
-      productTitle: product.title,
-      amount: order.amount,
-      currency: order.currency,
-      accountEmail: product.accountEmail,
-      accountPassword: product.accountPassword,
-      instructions: product.accountInstructions,
-      orderId: order._id.toString(),
-    }).catch((err) => console.error('Email send error:', err));
-  }
-}
 
 export async function POST(request: NextRequest) {
   const body = await request.text();
@@ -62,22 +26,22 @@ export async function POST(request: NextRequest) {
     try {
       await connectDB();
 
-      if (orderIds && productIds) {
-        // ── Cart checkout (multiple items) ──
-        const orderIdList = orderIds.split(',').filter(Boolean);
-        const productIdList = productIds.split(',').filter(Boolean);
-
-        await Promise.all(
-          orderIdList.map((oid: string, i: number) =>
-            completeOrder(oid, productIdList[i], session.payment_intent)
-          )
+      if (orderIds) {
+        // ── Cart checkout (multiple orders) ──
+        const orderIdList: string[] = orderIds.split(',').filter(Boolean);
+        // Store paymentIntentId on all orders then complete each
+        await Order.updateMany(
+          { _id: { $in: orderIdList } },
+          { stripePaymentIntentId: session.payment_intent }
         );
-      } else if (orderId && productId) {
+        await Promise.all(orderIdList.map((oid) => completeOrder(oid)));
+      } else if (orderId) {
         // ── Single item checkout (legacy) ──
-        await completeOrder(orderId, productId, session.payment_intent);
+        await Order.findByIdAndUpdate(orderId, { stripePaymentIntentId: session.payment_intent });
+        await completeOrder(orderId);
       }
     } catch (err) {
-      console.error('Webhook handler error:', err);
+      console.error('Stripe webhook handler error:', err);
     }
   }
 

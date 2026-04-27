@@ -25,7 +25,7 @@ const COINS: { id: Coin; icon: string; color: string }[] = [
 export default function CheckoutPage() {
   const router = useRouter();
   const { data: session } = useSession();
-  const { items, clearCart } = useCart();
+  const { items, clearCart, total } = useCart();
 
   const [tab, setTab] = useState<Tab>('paypal');
   const [coin, setCoin] = useState<Coin>('BTC');
@@ -41,8 +41,8 @@ export default function CheckoutPage() {
     if (items.length === 0) router.replace('/cart');
   }, [items, router]);
 
-  const total = items.reduce((s, i) => s + i.price, 0);
   const productIds = items.map((i) => i._id);
+  const quantities = items.map((i) => i.quantity);
 
   if (items.length === 0) return null;
 
@@ -61,7 +61,7 @@ export default function CheckoutPage() {
       const res = await fetch('/api/crypto/create-cart-payment', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ productIds, buyerEmail: email.trim(), coin }),
+        body: JSON.stringify({ productIds, quantities, buyerEmail: email.trim(), coin }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
@@ -227,8 +227,13 @@ export default function CheckoutPage() {
                       <p className="text-violet-400 text-[10px] font-semibold uppercase tracking-wider">{item.game}</p>
                       <p className="text-white text-xs font-medium truncate">{item.title}</p>
                       {item.rank && <p className="text-amber-400 text-[10px]">🏆 {item.rank}</p>}
+                      {item.productType === 'bulk' && item.quantity > 1 && (
+                        <p className="text-gray-500 text-[10px]">×{item.quantity} accounts</p>
+                      )}
                     </div>
-                    <span className="text-white font-bold text-sm flex-shrink-0">${item.price.toFixed(2)}</span>
+                    <span className="text-white font-bold text-sm flex-shrink-0">
+                      ${(item.price * item.quantity).toFixed(2)}
+                    </span>
                   </div>
                 ))}
               </div>

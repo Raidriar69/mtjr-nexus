@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { connectDB } from '@/lib/mongodb';
-import Product from '@/models/Product';
 import Order from '@/models/Order';
-import { sendOrderConfirmation } from '@/lib/email';
+import { completeOrder } from '@/lib/orderCompletion';
 
 export async function POST(request: NextRequest) {
   try {
@@ -37,37 +36,13 @@ export async function POST(request: NextRequest) {
     // order_id may be comma-separated (cart checkout) or single
     const orderIds: string[] = String(order_id).split(',').filter(Boolean);
 
-    for (const oid of orderIds) {
-      const order = await Order.findById(oid);
-      if (!order || order.status === 'completed') continue;
-
-      const product = await Product.findById(order.productId).select(
-        '+accountEmail +accountPassword +accountInstructions'
-      );
-      if (!product) continue;
-
-      await Promise.all([
-        Product.findByIdAndUpdate(order.productId, { isSold: true }),
-        Order.findByIdAndUpdate(order._id, {
-          status: 'completed',
-          deliveryDetails: {
-            email: product.accountEmail,
-            password: product.accountPassword,
-            instructions: product.accountInstructions,
-          },
-        }),
-      ]);
-
-      sendOrderConfirmation(order.buyerEmail, {
-        productTitle: product.title,
-        amount: order.amount,
-        currency: order.currency,
-        accountEmail: product.accountEmail,
-        accountPassword: product.accountPassword,
-        instructions: product.accountInstructions,
-        orderId: order._id.toString(),
-      }).catch(console.error);
-    }
+    await Promise.all(
+      orderIds.map(async (oid) => {
+        const order = await Order.findById(oid);
+        if (!order || order.status === 'completed') return;
+        await completeOrder(oid);
+      })
+    );
 
     return NextResponse.json({ received: true });
   } catch (err: any) {

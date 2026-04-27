@@ -12,10 +12,12 @@ export interface Product {
   images: string[];
   category: string;
   platform?: string;
+  productType: 'single' | 'shared' | 'bulk';
   deliveryMethod: 'email_password' | 'account_transfer';
   accountEmail?: string;
   accountPassword?: string;
   accountInstructions?: string;
+  availableStock?: number;  // computed: unsold accounts count for bulk
   isSold: boolean;
   isFeatured: boolean;
   createdAt: string;

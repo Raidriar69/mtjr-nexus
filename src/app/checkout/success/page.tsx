@@ -11,7 +11,9 @@ interface OrderData {
   amount: number;
   currency: string;
   status: string;
+  quantity?: number;
   deliveryDetails?: { email?: string; password?: string; instructions?: string };
+  deliveredAccounts?: { email: string; password: string }[];
   productId?: { game?: string; title?: string };
 }
 
@@ -124,17 +126,21 @@ export default function CheckoutSuccessPage() {
           </div>
         </div>
 
-        {/* Credentials — one per delivered order */}
-        {orders.some((o) => o.deliveryDetails?.email) && (
+        {/* Credentials section — handles single/shared and bulk */}
+        {orders.some((o) => o.deliveryDetails?.email || o.deliveredAccounts?.length) && (
           <div className="space-y-4 mb-6">
             <h2 className="text-white font-bold text-lg">🔑 Account Credentials</h2>
-            {orders.filter((o) => o.deliveryDetails?.email).map((order) => {
+
+            {orders.filter((o) => o.deliveryDetails?.email || o.deliveredAccounts?.length).map((order) => {
               const show = revealed.has(order._id);
+              const isBulk = Boolean(order.deliveredAccounts?.length);
+
               return (
                 <div key={order._id} className="bg-gray-900 border border-violet-500/20 rounded-2xl p-5">
                   <div className="flex items-center justify-between mb-3">
                     <p className="text-violet-300 text-xs font-semibold uppercase tracking-wider">
                       {order.productId?.game} — {order.productId?.title}
+                      {isBulk && ` (×${order.deliveredAccounts!.length})`}
                     </p>
                     <button
                       onClick={() =>
@@ -149,22 +155,46 @@ export default function CheckoutSuccessPage() {
                       {show ? '🔒 Hide' : '🔓 Reveal'}
                     </button>
                   </div>
+
                   {show && (
-                    <div className="bg-violet-900/20 rounded-xl p-4 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-gray-500 text-sm">Email</span>
-                        <span className="text-gray-200 font-mono text-sm">{order.deliveryDetails!.email}</span>
-                      </div>
-                      {order.deliveryDetails?.password && (
-                        <div className="flex items-center justify-between">
-                          <span className="text-gray-500 text-sm">Password</span>
-                          <span className="text-gray-200 font-mono text-sm">{order.deliveryDetails.password}</span>
+                    <div className="space-y-3">
+                      {/* ── Bulk: multiple credentials ── */}
+                      {isBulk && order.deliveredAccounts!.map((acct, idx) => (
+                        <div key={idx} className="bg-violet-900/20 rounded-xl p-4 space-y-2">
+                          <p className="text-violet-400 text-xs font-bold">Account #{idx + 1}</p>
+                          <div className="flex items-center justify-between">
+                            <span className="text-gray-500 text-sm">Email</span>
+                            <span className="text-gray-200 font-mono text-sm select-all">{acct.email}</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-gray-500 text-sm">Password</span>
+                            <span className="text-gray-200 font-mono text-sm select-all">{acct.password}</span>
+                          </div>
+                        </div>
+                      ))}
+
+                      {/* ── Single / Shared: one set of credentials ── */}
+                      {!isBulk && order.deliveryDetails && (
+                        <div className="bg-violet-900/20 rounded-xl p-4 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-gray-500 text-sm">Email</span>
+                            <span className="text-gray-200 font-mono text-sm select-all">{order.deliveryDetails.email}</span>
+                          </div>
+                          {order.deliveryDetails.password && (
+                            <div className="flex items-center justify-between">
+                              <span className="text-gray-500 text-sm">Password</span>
+                              <span className="text-gray-200 font-mono text-sm select-all">{order.deliveryDetails.password}</span>
+                            </div>
+                          )}
+                          {order.deliveryDetails.instructions && (
+                            <p className="text-gray-400 text-xs pt-2 border-t border-violet-500/20">
+                              {order.deliveryDetails.instructions}
+                            </p>
+                          )}
                         </div>
                       )}
-                      {order.deliveryDetails?.instructions && (
-                        <p className="text-gray-400 text-xs pt-2 border-t border-violet-500/20">{order.deliveryDetails.instructions}</p>
-                      )}
-                      <p className="text-amber-500 text-xs pt-2">⚠️ Change the password immediately. Never share these credentials.</p>
+
+                      <p className="text-amber-500 text-xs">⚠️ Change passwords immediately. Never share these credentials.</p>
                     </div>
                   )}
                 </div>

@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/mongodb';
-import Product from '@/models/Product';
 import Order from '@/models/Order';
-import { sendOrderConfirmation } from '@/lib/email';
+import { completeOrder } from '@/lib/orderCompletion';
 
 const PAYPAL_API =
   process.env.PAYPAL_ENV === 'live'
@@ -38,42 +37,13 @@ export async function POST(request: NextRequest) {
 
     await connectDB();
 
-    // Find all pending orders tied to this PayPal order
     const orders = await Order.find({ paypalOrderId, status: 'pending' });
     if (!orders.length) return NextResponse.json({ error: 'Orders not found' }, { status: 404 });
 
-    const completedOrderIds: string[] = [];
+    // Complete each order using the shared utility
+    await Promise.all(orders.map((o) => completeOrder(String(o._id))));
 
-    for (const order of orders) {
-      const product = await Product.findById(order.productId).select(
-        '+accountEmail +accountPassword +accountInstructions'
-      );
-      if (!product) continue;
-
-      await Promise.all([
-        Product.findByIdAndUpdate(order.productId, { isSold: true }),
-        Order.findByIdAndUpdate(order._id, {
-          status: 'completed',
-          deliveryDetails: {
-            email: product.accountEmail,
-            password: product.accountPassword,
-            instructions: product.accountInstructions,
-          },
-        }),
-      ]);
-
-      completedOrderIds.push(order._id.toString());
-
-      sendOrderConfirmation(order.buyerEmail, {
-        productTitle: product.title,
-        amount: order.amount,
-        currency: order.currency,
-        accountEmail: product.accountEmail,
-        accountPassword: product.accountPassword,
-        instructions: product.accountInstructions,
-        orderId: order._id.toString(),
-      }).catch(console.error);
-    }
+    const completedOrderIds = orders.map((o) => String(o._id));
 
     return NextResponse.json({
       orderIds: completedOrderIds,

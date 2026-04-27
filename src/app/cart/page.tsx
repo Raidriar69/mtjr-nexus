@@ -6,7 +6,7 @@ import { useCart } from '@/lib/cart';
 
 export default function CartPage() {
   const router = useRouter();
-  const { items, removeItem, clearCart, itemCount } = useCart();
+  const { items, removeItem, updateQuantity, clearCart, itemCount } = useCart();
   const [soldIds, setSoldIds] = useState<Set<string>>(new Set());
   const [validating, setValidating] = useState(false);
 
@@ -29,7 +29,7 @@ export default function CartPage() {
 
   const availableItems = items.filter((i) => !soldIds.has(i._id));
   const soldItems = items.filter((i) => soldIds.has(i._id));
-  const total = availableItems.reduce((s, i) => s + i.price, 0);
+  const total = availableItems.reduce((s, i) => s + i.price * i.quantity, 0);
 
   if (items.length === 0) {
     return (
@@ -118,11 +118,33 @@ export default function CartPage() {
                       {item.platform && <span className="text-gray-600 text-xs">{item.platform}</span>}
                       {sold && <span className="text-red-400 text-xs font-medium">● Sold</span>}
                     </div>
+                    {/* Quantity controls for bulk items */}
+                    {item.productType === 'bulk' && !sold && (
+                      <div className="flex items-center gap-2 mt-2">
+                        <button
+                          onClick={() => updateQuantity(item._id, item.quantity - 1)}
+                          disabled={item.quantity <= 1}
+                          className="w-6 h-6 rounded bg-gray-800 border border-gray-700 text-white text-sm flex items-center justify-center disabled:opacity-40 hover:bg-gray-700 transition-colors"
+                        >−</button>
+                        <span className="text-white text-xs font-medium w-5 text-center">{item.quantity}</span>
+                        <button
+                          onClick={() => updateQuantity(item._id, item.quantity + 1)}
+                          disabled={item.quantity >= (item.availableStock ?? Infinity)}
+                          className="w-6 h-6 rounded bg-gray-800 border border-gray-700 text-white text-sm flex items-center justify-center disabled:opacity-40 hover:bg-gray-700 transition-colors"
+                        >+</button>
+                        <span className="text-gray-600 text-xs">×{item.quantity}</span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Price + remove */}
                   <div className="flex flex-col items-end justify-between flex-shrink-0">
-                    <span className="text-white font-bold text-lg">${item.price.toFixed(2)}</span>
+                    <div className="text-right">
+                      <span className="text-white font-bold text-lg">${(item.price * item.quantity).toFixed(2)}</span>
+                      {item.quantity > 1 && (
+                        <p className="text-gray-600 text-xs">${item.price.toFixed(2)} each</p>
+                      )}
+                    </div>
                     <button
                       onClick={() => removeItem(item._id)}
                       className="text-gray-600 hover:text-red-400 transition-colors p-1"
@@ -156,8 +178,11 @@ export default function CartPage() {
               <div className="space-y-2.5 mb-5">
                 {availableItems.map((item) => (
                   <div key={item._id} className="flex justify-between text-sm">
-                    <span className="text-gray-400 truncate mr-3 max-w-[160px]">{item.title}</span>
-                    <span className="text-white font-medium flex-shrink-0">${item.price.toFixed(2)}</span>
+                    <span className="text-gray-400 truncate mr-3 max-w-[160px]">
+                      {item.title}
+                      {item.quantity > 1 && <span className="text-gray-600"> ×{item.quantity}</span>}
+                    </span>
+                    <span className="text-white font-medium flex-shrink-0">${(item.price * item.quantity).toFixed(2)}</span>
                   </div>
                 ))}
                 {soldItems.length > 0 && (

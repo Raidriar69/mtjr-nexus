@@ -18,9 +18,28 @@ export async function PUT(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
   try {
-    const data = await request.json();
+    const body = await request.json();
+    const { appendAccounts, ...updateData } = body;
+
     await connectDB();
-    const product = await Product.findByIdAndUpdate(params.id, data, { new: true });
+
+    let product;
+
+    if (appendAccounts?.length) {
+      // Append new bulk accounts and re-activate the listing if it was sold out
+      product = await Product.findByIdAndUpdate(
+        params.id,
+        {
+          ...updateData,
+          $push: { accounts: { $each: appendAccounts } },
+          isSold: false,
+        },
+        { new: true }
+      );
+    } else {
+      product = await Product.findByIdAndUpdate(params.id, updateData, { new: true });
+    }
+
     if (!product) return NextResponse.json({ error: 'Product not found' }, { status: 404 });
     return NextResponse.json({ product });
   } catch {

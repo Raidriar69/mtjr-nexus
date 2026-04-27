@@ -13,7 +13,7 @@ const COIN_CURRENCIES: Record<string, string> = {
 
 export async function POST(request: NextRequest) {
   try {
-    const { productIds, buyerEmail, coin } = await request.json();
+    const { productIds, quantities: rawQty, buyerEmail, coin } = await request.json();
 
     if (!productIds?.length || !buyerEmail || !coin) {
       return NextResponse.json({ error: 'Products, email, and coin required' }, { status: 400 });
@@ -22,29 +22,47 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unsupported coin' }, { status: 400 });
     }
 
+    const quantities: number[] = productIds.map((_: string, i: number) =>
+      Math.max(1, Number(rawQty?.[i]) || 1)
+    );
+
     await connectDB();
     const session = await getServerSession(authOptions);
     const origin = request.headers.get('origin') || process.env.NEXTAUTH_URL || 'http://localhost:3000';
 
     const products = await Promise.all(productIds.map((id: string) => Product.findById(id)));
-    if (products.some((p: any) => !p)) return NextResponse.json({ error: 'A product was not found' }, { status: 404 });
-    const soldProduct = products.find((p: any) => p.isSold);
-    if (soldProduct) return NextResponse.json({ error: `"${(soldProduct as any).title}" is already sold` }, { status: 409 });
+    for (let i = 0; i < products.length; i++) {
+      const p = products[i] as any;
+      if (!p) return NextResponse.json({ error: 'A product was not found' }, { status: 404 });
+      if (p.productType === 'bulk') {
+        const stockCount = ((p.accounts ?? []) as any[]).filter((a: any) => !a.sold).length;
+        if (stockCount < quantities[i]) {
+          return NextResponse.json(
+            { error: `"${p.title}" only has ${stockCount} account(s) in stock (requested ${quantities[i]})` },
+            { status: 409 }
+          );
+        }
+      } else if (p.isSold) {
+        return NextResponse.json({ error: `"${p.title}" is already sold` }, { status: 409 });
+      }
+    }
 
-    const total = products.reduce((s: number, p: any) => s + p.price, 0);
+    // Total in USD dollars
+    const total = products.reduce((s: number, p: any, i: number) => s + p.price * quantities[i], 0);
 
     // Create all pending orders
     const orders = await Promise.all(
-      products.map((p: any) =>
+      products.map((p: any, i: number) =>
         Order.create({
           userId: (session?.user as any)?.id,
           buyerEmail,
           productId: p._id,
-          amount: Math.round(p.price * 100),
+          amount: Math.round(p.price * quantities[i] * 100),
           currency: 'usd',
           status: 'pending',
           paymentMethod: 'crypto',
           cryptoCurrency: coin,
+          quantity: quantities[i],
         })
       )
     );
@@ -68,9 +86,9 @@ export async function POST(request: NextRequest) {
         price_amount: total,
         price_currency: 'usd',
         pay_currency: COIN_CURRENCIES[coin],
-        order_id: orderIds.join(','),   // comma-separated for multi-item
+        order_id: orderIds.join(','),
         order_description: products.length === 1
-          ? (products[0] as any).title
+          ? `${(products[0] as any).title}${quantities[0] > 1 ? ` ×${quantities[0]}` : ''}`
           : `${products.length} Gaming Accounts — MTJR Nexus`,
         ipn_callback_url: `${origin}/api/crypto/webhook`,
         success_url: `${origin}/checkout/success?order_id=${primaryOrderId}&all_ids=${orderIds.join(',')}`,

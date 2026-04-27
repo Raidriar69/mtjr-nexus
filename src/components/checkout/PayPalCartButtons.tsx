@@ -26,7 +26,11 @@ function Buttons({ items, buyerEmail, onSuccess }: Props) {
         const res = await fetch('/api/paypal/create-cart-order', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ productIds: items.map((i) => i._id), buyerEmail: email }),
+          body: JSON.stringify({
+            productIds: items.map((i) => i._id),
+            quantities: items.map((i) => i.quantity),
+            buyerEmail: email,
+          }),
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Failed to create PayPal order');

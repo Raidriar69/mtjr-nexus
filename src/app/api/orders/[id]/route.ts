@@ -9,7 +9,7 @@ export async function GET(
   try {
     await connectDB();
     const order = await Order.findById(params.id)
-      .populate('productId', 'game title images price')
+      .populate('productId', 'game title images price productType')
       .lean();
 
     if (!order) {

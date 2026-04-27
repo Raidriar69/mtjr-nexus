@@ -8,6 +8,7 @@ export interface IOrder extends Document {
   currency: string;
   status: 'pending' | 'completed' | 'failed' | 'refunded';
   paymentMethod?: 'stripe' | 'paypal' | 'crypto';
+  quantity: number;
   stripePaymentIntentId?: string;
   stripeSessionId?: string;
   paypalOrderId?: string;
@@ -18,6 +19,7 @@ export interface IOrder extends Document {
     password?: string;
     instructions?: string;
   };
+  deliveredAccounts?: { email: string; password: string }[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -39,6 +41,7 @@ const OrderSchema = new Schema<IOrder>(
       enum: ['stripe', 'paypal', 'crypto'],
       default: 'stripe',
     },
+    quantity: { type: Number, default: 1 },
     stripePaymentIntentId: { type: String },
     stripeSessionId: { type: String },
     paypalOrderId: { type: String },
@@ -49,6 +52,10 @@ const OrderSchema = new Schema<IOrder>(
       password: { type: String },
       instructions: { type: String },
     },
+    deliveredAccounts: [{
+      email: { type: String },
+      password: { type: String },
+    }],
   },
   { timestamps: true }
 );

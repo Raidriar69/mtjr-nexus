@@ -12,9 +12,16 @@ interface Props {
 async function getProduct(id: string) {
   try {
     await connectDB();
-    const product = await Product.findById(id).lean();
-    if (!product) return null;
-    return JSON.parse(JSON.stringify(product));
+    const raw = await Product.findById(id).lean() as any;
+    if (!raw) return null;
+    // Compute availableStock from accounts array (server-side only)
+    const availableStock: number | undefined =
+      raw.productType === 'bulk'
+        ? ((raw.accounts ?? []) as any[]).filter((a: any) => !a.sold).length
+        : undefined;
+    // Strip accounts (credentials) before serialising to client
+    const { accounts: _accounts, accountEmail: _ae, accountPassword: _ap, ...safe } = raw;
+    return JSON.parse(JSON.stringify({ ...safe, availableStock }));
   } catch {
     return null;
   }
@@ -110,8 +117,16 @@ export default async function ProductDetailPage({ params }: Props) {
                 {/* Badges */}
                 <div className="flex items-center gap-2 mb-3 flex-wrap">
                   <Badge variant="default">{product.game}</Badge>
+                  {product.productType === 'bulk' && (
+                    <Badge variant={product.availableStock && product.availableStock > 0 ? 'default' : 'sold'}>
+                      {product.availableStock && product.availableStock > 0
+                        ? `📦 ${product.availableStock} in stock`
+                        : '📦 Out of Stock'}
+                    </Badge>
+                  )}
+                  {product.productType === 'shared' && <Badge variant="default">♻️ Shared</Badge>}
                   {product.isFeatured && <Badge variant="warning">⭐ Featured</Badge>}
-                  {product.isSold && <Badge variant="sold">Sold Out</Badge>}
+                  {product.isSold && product.productType !== 'bulk' && <Badge variant="sold">Sold Out</Badge>}
                   {discount && !product.isSold && <Badge variant="danger">-{discount}%</Badge>}
                 </div>
 
@@ -168,7 +183,7 @@ export default async function ProductDetailPage({ params }: Props) {
                     <svg className="w-4 h-4 text-emerald-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                     </svg>
-                    Card, PayPal & Crypto accepted
+                    PayPal & Crypto accepted
                   </div>
                   <div className="flex items-center gap-2 text-xs text-gray-500">
                     <svg className="w-4 h-4 text-amber-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">

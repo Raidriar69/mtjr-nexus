@@ -1,5 +1,12 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
+export interface IBulkAccount {
+  _id?: mongoose.Types.ObjectId;
+  email: string;
+  password: string;
+  sold: boolean;
+}
+
 export interface IProduct extends Document {
   game: string;
   title: string;
@@ -13,10 +20,12 @@ export interface IProduct extends Document {
   images: string[];
   category: string;
   platform: string;
+  productType: 'single' | 'shared' | 'bulk';
   deliveryMethod: 'email_password' | 'account_transfer';
   accountEmail: string;
   accountPassword: string;
   accountInstructions: string;
+  accounts: IBulkAccount[];
   isSold: boolean;
   isFeatured: boolean;
   createdAt: Date;
@@ -37,6 +46,17 @@ const ProductSchema = new Schema<IProduct>(
     images: [{ type: String }],
     category: { type: String, required: true },
     platform: { type: String, default: 'PC' },
+    productType: {
+      type: String,
+      enum: ['single', 'shared', 'bulk'],
+      default: 'single',
+      required: true,
+    },
+    accounts: [{
+      email: { type: String, default: '' },
+      password: { type: String, default: '' },
+      sold: { type: Boolean, default: false },
+    }],
     deliveryMethod: {
       type: String,
       enum: ['email_password', 'account_transfer'],
