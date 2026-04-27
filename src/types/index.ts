@@ -60,7 +60,7 @@ export type GameCategory =
   | 'csgo'
   | 'apex'
   | 'cod'
-  | 'minecraft'
+  | 'steam'
   | 'other';
 
 export const GAME_CATEGORIES: { value: GameCategory; label: string }[] = [
@@ -69,6 +69,6 @@ export const GAME_CATEGORIES: { value: GameCategory; label: string }[] = [
   { value: 'csgo', label: 'CS2' },
   { value: 'apex', label: 'Apex Legends' },
   { value: 'cod', label: 'Call of Duty' },
-  { value: 'minecraft', label: 'Minecraft' },
+  { value: 'steam', label: 'Steam' },
   { value: 'other', label: 'Other' },
 ];

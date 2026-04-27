@@ -37,13 +37,6 @@ const categories = [
     emoji: '🎖️',
   },
   {
-    id: 'minecraft',
-    name: 'Minecraft',
-    description: 'Java & Bedrock accounts',
-    color: 'from-emerald-600 to-teal-500',
-    emoji: '⛏️',
-  },
-  {
     id: 'steam',
     name: 'Steam',
     description: 'Games, inventory & rare items',
