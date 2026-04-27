@@ -12,7 +12,7 @@ const PayPalCartButtons = dynamic(() => import('@/components/checkout/PayPalCart
   loading: () => <div className="h-12 bg-gray-800 animate-pulse rounded-xl" />,
 });
 
-type Tab = 'stripe' | 'paypal' | 'crypto';
+type Tab = 'paypal' | 'crypto';
 type Coin = 'BTC' | 'ETH' | 'SOL' | 'LTC';
 
 const COINS: { id: Coin; icon: string; color: string }[] = [
@@ -27,7 +27,7 @@ export default function CheckoutPage() {
   const { data: session } = useSession();
   const { items, clearCart } = useCart();
 
-  const [tab, setTab] = useState<Tab>('stripe');
+  const [tab, setTab] = useState<Tab>('paypal');
   const [coin, setCoin] = useState<Coin>('BTC');
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
@@ -52,24 +52,6 @@ export default function CheckoutPage() {
       return false;
     }
     return true;
-  }
-
-  async function handleStripe() {
-    if (!validateEmail()) return;
-    setLoading(true);
-    try {
-      const res = await fetch('/api/stripe/checkout-cart', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ productIds, buyerEmail: email.trim() }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      window.location.href = data.url;
-    } catch (err: any) {
-      toast.error(err.message || 'Stripe checkout failed');
-      setLoading(false);
-    }
   }
 
   async function handleCrypto() {
@@ -139,9 +121,8 @@ export default function CheckoutPage() {
             {/* Payment method tabs */}
             <div className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
               {/* Tab bar */}
-              <div className="grid grid-cols-3 border-b border-gray-800">
+              <div className="grid grid-cols-2 border-b border-gray-800">
                 {[
-                  { id: 'stripe' as const, label: 'Card / Wallet', icon: '💳' },
                   { id: 'paypal' as const, label: 'PayPal', icon: '🅿️' },
                   { id: 'crypto' as const, label: 'Crypto', icon: '₿' },
                 ].map((t) => (
@@ -162,40 +143,6 @@ export default function CheckoutPage() {
 
               {/* Tab content */}
               <div className="p-6">
-
-                {/* ── STRIPE ── */}
-                {tab === 'stripe' && (
-                  <div className="space-y-4">
-                    <p className="text-gray-400 text-sm">
-                      Pay securely with your credit/debit card, Apple Pay, or Google Pay via Stripe.
-                    </p>
-                    <button
-                      onClick={handleStripe}
-                      disabled={loading}
-                      className="w-full bg-violet-600 hover:bg-violet-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-4 rounded-xl transition-all hover:shadow-[0_0_30px_rgba(139,92,246,0.35)] flex items-center justify-center gap-3 text-base"
-                    >
-                      {loading ? <Spinner /> : (
-                        <>
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-                          </svg>
-                          Pay ${total.toFixed(2)} with Card
-                        </>
-                      )}
-                    </button>
-                    <div className="flex items-center justify-center gap-3 pt-1">
-                      {['Visa', 'Mastercard', 'Apple Pay', 'Google Pay'].map((m) => (
-                        <span key={m} className="text-xs text-gray-600 bg-gray-800 px-2 py-1 rounded-md">{m}</span>
-                      ))}
-                    </div>
-                    <p className="text-center text-gray-700 text-xs flex items-center justify-center gap-1">
-                      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
-                      </svg>
-                      PCI DSS Level 1 — Secured by Stripe
-                    </p>
-                  </div>
-                )}
 
                 {/* ── PAYPAL ── */}
                 {tab === 'paypal' && (

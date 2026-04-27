@@ -38,6 +38,7 @@ export function Footer() {
                 { href: '/products?category=valorant', label: 'Valorant' },
                 { href: '/products?category=csgo', label: 'CS2' },
                 { href: '/products?category=apex', label: 'Apex Legends' },
+                { href: '/products?category=steam', label: 'Steam' },
               ].map((link) => (
                 <li key={link.href}>
                   <Link href={link.href} className="text-gray-500 hover:text-violet-400 text-sm transition-colors">

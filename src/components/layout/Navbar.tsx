@@ -24,6 +24,7 @@ export function Navbar() {
     { href: '/products?category=valorant', label: 'Valorant' },
     { href: '/products?category=csgo', label: 'CS2' },
     { href: '/products?category=apex', label: 'Apex' },
+    { href: '/products?category=steam', label: 'Steam' },
   ];
 
   return (

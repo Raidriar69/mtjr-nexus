@@ -43,6 +43,13 @@ const categories = [
     color: 'from-emerald-600 to-teal-500',
     emoji: '⛏️',
   },
+  {
+    id: 'steam',
+    name: 'Steam',
+    description: 'Games, inventory & rare items',
+    color: 'from-blue-700 to-cyan-600',
+    emoji: '🎮',
+  },
 ];
 
 export function CategorySection() {
