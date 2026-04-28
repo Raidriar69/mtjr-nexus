@@ -1,16 +1,22 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useSession, signOut } from 'next-auth/react';
 import { usePathname } from 'next/navigation';
 import { useCart } from '@/lib/cart';
+import { useI18n } from '@/lib/i18n';
+import { useCurrency, CURRENCIES, CurrencyCode } from '@/lib/currency';
 
 export function Navbar() {
   const { data: session } = useSession();
   const pathname = usePathname();
   const { itemCount } = useCart();
+  const { lang, setLang, t } = useI18n();
+  const { currency, setCurrency } = useCurrency();
   const [isScrolled, setIsScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [currencyOpen, setCurrencyOpen] = useState(false);
+  const currencyRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handler = () => setIsScrolled(window.scrollY > 20);
@@ -18,8 +24,19 @@ export function Navbar() {
     return () => window.removeEventListener('scroll', handler);
   }, []);
 
+  // Close currency dropdown on outside click
+  useEffect(() => {
+    function onClickOutside(e: MouseEvent) {
+      if (currencyRef.current && !currencyRef.current.contains(e.target as Node)) {
+        setCurrencyOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', onClickOutside);
+    return () => document.removeEventListener('mousedown', onClickOutside);
+  }, []);
+
   const navLinks = [
-    { href: '/products', label: 'All Accounts' },
+    { href: '/products', label: t('nav.allAccounts') },
     { href: '/products?category=fortnite', label: 'Fortnite' },
     { href: '/products?category=valorant', label: 'Valorant' },
     { href: '/products?category=csgo', label: 'CS2' },
@@ -42,7 +59,7 @@ export function Navbar() {
             <img src="/logo.png" alt="MTJR Nexus" className="h-10 w-auto" />
           </Link>
 
-          {/* Desktop links */}
+          {/* Desktop nav links */}
           <div className="hidden md:flex items-center gap-1">
             {navLinks.map((link) => (
               <Link
@@ -59,32 +76,73 @@ export function Navbar() {
             ))}
           </div>
 
-          {/* Right side */}
-          <div className="hidden md:flex items-center gap-3">
+          {/* Right side controls */}
+          <div className="hidden md:flex items-center gap-2">
+            {/* Language toggle */}
+            <button
+              onClick={() => setLang(lang === 'en' ? 'ar' : 'en')}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-800/60 border border-gray-700/50 hover:border-violet-500/40 text-gray-400 hover:text-white text-xs font-medium transition-all"
+              title={t('common.language')}
+            >
+              {lang === 'en' ? '🇺🇸 EN' : '🇸🇦 AR'}
+            </button>
+
+            {/* Currency dropdown */}
+            <div ref={currencyRef} className="relative">
+              <button
+                onClick={() => setCurrencyOpen(!currencyOpen)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-800/60 border border-gray-700/50 hover:border-violet-500/40 text-gray-400 hover:text-white text-xs font-medium transition-all"
+                title={t('common.currency')}
+              >
+                {currency}
+                <svg className={`w-3 h-3 transition-transform ${currencyOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              {currencyOpen && (
+                <div className="absolute top-full mt-1 right-0 w-44 bg-gray-900 border border-gray-700 rounded-xl shadow-xl overflow-hidden z-50">
+                  {CURRENCIES.map((c) => (
+                    <button
+                      key={c.code}
+                      onClick={() => { setCurrency(c.code as CurrencyCode); setCurrencyOpen(false); }}
+                      className={`w-full flex items-center justify-between px-4 py-2.5 text-sm transition-colors ${
+                        currency === c.code
+                          ? 'bg-violet-600/20 text-violet-300'
+                          : 'text-gray-400 hover:bg-gray-800 hover:text-white'
+                      }`}
+                    >
+                      <span>{c.code}</span>
+                      <span className="text-gray-500 text-xs">{c.name}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
             {session ? (
               <>
                 {(session.user as any)?.role === 'admin' && (
                   <Link href="/admin" className="text-sm text-amber-400 hover:text-amber-300 font-medium transition-colors">
-                    ⚡ Admin
+                    ⚡ {t('nav.admin')}
                   </Link>
                 )}
                 <Link href="/orders" className="text-sm text-gray-400 hover:text-white transition-colors">
-                  My Orders
+                  {t('nav.myOrders')}
                 </Link>
               </>
             ) : (
               <Link href="/login" className="text-sm text-gray-400 hover:text-white transition-colors">
-                Sign In
+                {t('nav.signIn')}
               </Link>
             )}
 
-            {/* Cart icon */}
+            {/* Cart */}
             <Link
               href="/cart"
-              className="relative flex items-center justify-center w-9 h-9 rounded-lg bg-gray-800/60 hover:bg-gray-800 border border-gray-700/50 hover:border-violet-500/50 text-gray-400 hover:text-white transition-all group"
-              aria-label="Cart"
+              className="relative flex items-center justify-center w-9 h-9 rounded-lg bg-gray-800/60 hover:bg-gray-800 border border-gray-700/50 hover:border-violet-500/50 text-gray-400 hover:text-white transition-all"
+              aria-label={t('nav.cart')}
             >
-              <svg className="w-4.5 h-4.5 w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
               </svg>
               {itemCount > 0 && (
@@ -99,20 +157,26 @@ export function Navbar() {
                 onClick={() => signOut({ callbackUrl: '/' })}
                 className="text-sm text-gray-500 hover:text-gray-300 transition-colors"
               >
-                Sign Out
+                {t('nav.signOut')}
               </button>
             ) : (
               <Link
                 href="/register"
-                className="text-sm bg-violet-600 hover:bg-violet-500 text-white px-4 py-2 rounded-lg transition-all duration-200 shadow-[0_0_15px_rgba(124,58,237,0.3)] hover:shadow-[0_0_20px_rgba(124,58,237,0.5)]"
+                className="text-sm bg-violet-600 hover:bg-violet-500 text-white px-4 py-2 rounded-lg transition-all duration-200 shadow-[0_0_15px_rgba(124,58,237,0.3)]"
               >
-                Sign Up
+                {t('nav.signUp')}
               </Link>
             )}
           </div>
 
-          {/* Mobile: cart + hamburger */}
+          {/* Mobile: language + cart + hamburger */}
           <div className="flex md:hidden items-center gap-2">
+            <button
+              onClick={() => setLang(lang === 'en' ? 'ar' : 'en')}
+              className="text-xs text-gray-500 hover:text-gray-300 px-2 py-1 rounded transition-colors"
+            >
+              {lang === 'en' ? 'AR' : 'EN'}
+            </button>
             <Link href="/cart" className="relative flex items-center justify-center w-9 h-9 text-gray-400">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
@@ -152,28 +216,47 @@ export function Navbar() {
                 {link.label}
               </Link>
             ))}
-            <div className="pt-2 mt-2 border-t border-gray-800 space-y-1">
+            {/* Mobile currency selector */}
+            <div className="pt-2 border-t border-gray-800">
+              <p className="text-gray-600 text-xs px-3 pb-1">{t('common.currency')}</p>
+              <div className="flex flex-wrap gap-2 px-3">
+                {CURRENCIES.map((c) => (
+                  <button
+                    key={c.code}
+                    onClick={() => setCurrency(c.code as CurrencyCode)}
+                    className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
+                      currency === c.code
+                        ? 'bg-violet-600 text-white'
+                        : 'bg-gray-800 text-gray-400 hover:text-white'
+                    }`}
+                  >
+                    {c.code}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="pt-2 mt-1 border-t border-gray-800 space-y-1">
               {session ? (
                 <>
                   {(session.user as any)?.role === 'admin' && (
                     <Link href="/admin" className="block px-3 py-2.5 text-sm text-amber-400" onClick={() => setMenuOpen(false)}>
-                      ⚡ Admin Panel
+                      ⚡ {t('nav.admin')}
                     </Link>
                   )}
                   <Link href="/orders" className="block px-3 py-2.5 text-sm text-gray-400 hover:text-white rounded-md" onClick={() => setMenuOpen(false)}>
-                    My Orders
+                    {t('nav.myOrders')}
                   </Link>
                   <button onClick={() => { setMenuOpen(false); signOut({ callbackUrl: '/' }); }} className="block w-full text-left px-3 py-2.5 text-sm text-gray-500 hover:text-white rounded-md">
-                    Sign Out
+                    {t('nav.signOut')}
                   </button>
                 </>
               ) : (
                 <>
                   <Link href="/login" className="block px-3 py-2.5 text-sm text-gray-400 hover:text-white rounded-md" onClick={() => setMenuOpen(false)}>
-                    Sign In
+                    {t('nav.signIn')}
                   </Link>
                   <Link href="/register" className="block px-3 py-2.5 text-sm bg-violet-600 text-white rounded-md text-center" onClick={() => setMenuOpen(false)}>
-                    Sign Up Free
+                    {t('nav.signUp')}
                   </Link>
                 </>
               )}

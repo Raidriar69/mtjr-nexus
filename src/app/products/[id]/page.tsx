@@ -3,6 +3,7 @@ import { connectDB } from '@/lib/mongodb';
 import Product from '@/models/Product';
 import { Badge } from '@/components/ui/Badge';
 import { ProductActions } from '@/components/products/ProductActions';
+import { ReviewSection } from '@/components/products/ReviewSection';
 import type { Metadata } from 'next';
 
 interface Props {
@@ -81,6 +82,9 @@ export default async function ProductDetailPage({ params }: Props) {
               <h3 className="text-white font-semibold mb-3 text-lg">Description</h3>
               <p className="text-gray-400 leading-relaxed whitespace-pre-line text-sm">{product.description}</p>
             </div>
+
+            {/* Reviews */}
+            <ReviewSection productId={params.id} />
 
             {/* Skins & Items */}
             {(product.skins?.length > 0 || product.items?.length > 0) && (

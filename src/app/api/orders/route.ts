@@ -12,7 +12,7 @@ export async function GET(_request: NextRequest) {
     }
 
     await connectDB();
-    const orders = await Order.find({
+    const rawOrders = await Order.find({
       $or: [
         { userId: (session.user as any).id },
         { buyerEmail: session.user.email },
@@ -21,6 +21,9 @@ export async function GET(_request: NextRequest) {
       .populate('productId', 'game title images category price')
       .sort({ createdAt: -1 })
       .lean();
+
+    // Strip credentials from list view — detail page serves them individually
+    const orders = rawOrders.map(({ deliveryDetails: _d, deliveredAccounts: _da, ...safe }) => safe);
 
     return NextResponse.json({ orders });
   } catch {

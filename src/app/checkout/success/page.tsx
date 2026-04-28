@@ -4,6 +4,8 @@ import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useCart } from '@/lib/cart';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { useI18n } from '@/lib/i18n';
+import { useCurrency } from '@/lib/currency';
 
 interface OrderData {
   _id: string;
@@ -22,6 +24,8 @@ export default function CheckoutSuccessPage() {
   const orderId = searchParams.get('order_id');
   const allIds = searchParams.get('all_ids');
   const { clearCart } = useCart();
+  const { t } = useI18n();
+  const { formatPrice } = useCurrency();
 
   const [orders, setOrders] = useState<OrderData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -88,11 +92,11 @@ export default function CheckoutSuccessPage() {
             )}
           </div>
           <h1 className="text-3xl font-black text-white mb-2">
-            {allComplete ? 'Payment Confirmed!' : 'Payment Processing…'}
+            {allComplete ? t('success.confirmed') : t('success.processing')}
           </h1>
           {primaryOrder && (
             <p className="text-gray-500 text-sm">
-              {allComplete ? 'Account details sent to ' : 'Finalising order for '}
+              {allComplete ? t('success.sentTo') : t('success.finalising')}{' '}
               <span className="text-gray-300 font-medium">{primaryOrder.buyerEmail}</span>
             </p>
           )}
@@ -101,7 +105,7 @@ export default function CheckoutSuccessPage() {
         {/* Order summary */}
         <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 mb-6">
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-white font-bold">Order Details</h2>
+            <h2 className="text-white font-bold">{t('success.orderDetails')}</h2>
             {orders.length > 1 && <span className="text-gray-500 text-sm">{orders.length} items</span>}
           </div>
           <div className="space-y-3 mb-4">
@@ -113,23 +117,23 @@ export default function CheckoutSuccessPage() {
                 </div>
                 <div className="text-right flex-shrink-0 ml-4">
                   <span className={`text-xs block ${order.status === 'completed' ? 'text-emerald-400' : 'text-amber-400'}`}>
-                    {order.status === 'completed' ? '✓ Delivered' : '⏳ Processing'}
+                    {order.status === 'completed' ? t('success.delivered') : t('success.pending')}
                   </span>
-                  <span className="text-white font-medium">${(order.amount / 100).toFixed(2)}</span>
+                  <span className="text-white font-medium price-ltr">{formatPrice(order.amount / 100)}</span>
                 </div>
               </div>
             ))}
           </div>
           <div className="border-t border-gray-800 pt-3 flex justify-between">
-            <span className="text-gray-500 text-sm">Total paid</span>
-            <span className="text-emerald-400 font-bold text-lg">${(totalPaid / 100).toFixed(2)}</span>
+            <span className="text-gray-500 text-sm">{t('success.totalPaid')}</span>
+            <span className="text-emerald-400 font-bold text-lg price-ltr">{formatPrice(totalPaid / 100)}</span>
           </div>
         </div>
 
         {/* Credentials section — handles single/shared and bulk */}
         {orders.some((o) => o.deliveryDetails?.email || o.deliveredAccounts?.length) && (
           <div className="space-y-4 mb-6">
-            <h2 className="text-white font-bold text-lg">🔑 Account Credentials</h2>
+            <h2 className="text-white font-bold text-lg">{t('success.credentials')}</h2>
 
             {orders.filter((o) => o.deliveryDetails?.email || o.deliveredAccounts?.length).map((order) => {
               const show = revealed.has(order._id);
@@ -152,7 +156,7 @@ export default function CheckoutSuccessPage() {
                       }
                       className="text-violet-400 hover:text-violet-300 text-xs font-medium transition-colors"
                     >
-                      {show ? '🔒 Hide' : '🔓 Reveal'}
+                      {show ? t('success.hide') : t('success.reveal')}
                     </button>
                   </div>
 
@@ -161,13 +165,13 @@ export default function CheckoutSuccessPage() {
                       {/* ── Bulk: multiple credentials ── */}
                       {isBulk && order.deliveredAccounts!.map((acct, idx) => (
                         <div key={idx} className="bg-violet-900/20 rounded-xl p-4 space-y-2">
-                          <p className="text-violet-400 text-xs font-bold">Account #{idx + 1}</p>
+                          <p className="text-violet-400 text-xs font-bold">{t('success.account')} #{idx + 1}</p>
                           <div className="flex items-center justify-between">
-                            <span className="text-gray-500 text-sm">Email</span>
+                            <span className="text-gray-500 text-sm">{t('success.email')}</span>
                             <span className="text-gray-200 font-mono text-sm select-all">{acct.email}</span>
                           </div>
                           <div className="flex items-center justify-between">
-                            <span className="text-gray-500 text-sm">Password</span>
+                            <span className="text-gray-500 text-sm">{t('success.password')}</span>
                             <span className="text-gray-200 font-mono text-sm select-all">{acct.password}</span>
                           </div>
                         </div>
@@ -177,12 +181,12 @@ export default function CheckoutSuccessPage() {
                       {!isBulk && order.deliveryDetails && (
                         <div className="bg-violet-900/20 rounded-xl p-4 space-y-2">
                           <div className="flex items-center justify-between">
-                            <span className="text-gray-500 text-sm">Email</span>
+                            <span className="text-gray-500 text-sm">{t('success.email')}</span>
                             <span className="text-gray-200 font-mono text-sm select-all">{order.deliveryDetails.email}</span>
                           </div>
                           {order.deliveryDetails.password && (
                             <div className="flex items-center justify-between">
-                              <span className="text-gray-500 text-sm">Password</span>
+                              <span className="text-gray-500 text-sm">{t('success.password')}</span>
                               <span className="text-gray-200 font-mono text-sm select-all">{order.deliveryDetails.password}</span>
                             </div>
                           )}
@@ -194,7 +198,7 @@ export default function CheckoutSuccessPage() {
                         </div>
                       )}
 
-                      <p className="text-amber-500 text-xs">⚠️ Change passwords immediately. Never share these credentials.</p>
+                      <p className="text-amber-500 text-xs">{t('success.changePassword')}</p>
                     </div>
                   )}
                 </div>
@@ -203,13 +207,32 @@ export default function CheckoutSuccessPage() {
           </div>
         )}
 
+        {/* Contact notice */}
+        <div className="bg-violet-500/5 border border-violet-500/20 rounded-xl p-4 text-center mb-6">
+          <p className="text-gray-400 text-sm">
+            {t('success.contactNotice')}{' '}
+            <a href="#" className="text-green-400 hover:text-green-300 font-medium transition-colors">
+              {t('success.whatsapp')}
+            </a>
+            {' '}{t('success.or')}{' '}
+            <a
+              href="https://www.instagram.com/mtjr.nexus/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-pink-400 hover:text-pink-300 font-medium transition-colors"
+            >
+              {t('success.instagram')}
+            </a>
+          </p>
+        </div>
+
         {/* Action buttons */}
         <div className="flex gap-3">
           <Link href="/orders" className="flex-1 bg-violet-600 hover:bg-violet-500 text-white font-semibold py-3.5 rounded-xl text-sm transition-all text-center hover:shadow-[0_0_20px_rgba(139,92,246,0.3)]">
-            View My Orders
+            {t('success.viewOrders')}
           </Link>
           <Link href="/products" className="flex-1 bg-gray-800 hover:bg-gray-700 text-gray-300 font-semibold py-3.5 rounded-xl text-sm transition-all text-center">
-            Browse More
+            {t('success.browseMore')}
           </Link>
         </div>
 
