@@ -1,8 +1,17 @@
 'use client';
 import Link from 'next/link';
-import { Button } from '@/components/ui/Button';
+import { useI18n } from '@/lib/i18n';
 
 export function HeroSection() {
+  const { t } = useI18n();
+
+  const stats = [
+    { value: '500+',   labelKey: 'home.statAccounts' as const },
+    { value: '1,200+', labelKey: 'home.statBuyers'   as const },
+    { value: '< 5min', labelKey: 'home.statDelivery' as const },
+    { value: '4.9★',   labelKey: 'home.statRating'   as const },
+  ];
+
   return (
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden bg-gray-950">
       {/* Background grid */}
@@ -22,47 +31,43 @@ export function HeroSection() {
         {/* Badge */}
         <div className="inline-flex items-center gap-2 bg-violet-500/10 border border-violet-500/30 rounded-full px-4 py-1.5 mb-8">
           <span className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
-          <span className="text-violet-300 text-sm font-medium">Instant Delivery · Secure Payments</span>
+          <span className="text-violet-300 text-sm font-medium">{t('home.heroBadge')}</span>
         </div>
 
         <h1 className="text-5xl sm:text-6xl lg:text-7xl font-black text-white mb-6 leading-[1.05] tracking-tight">
-          Premium Gaming{' '}
+          {t('home.heroTitle1')}{' '}
           <span className="bg-gradient-to-r from-violet-400 to-cyan-400 bg-clip-text text-transparent">
-            Accounts
+            {t('home.heroTitle2')}
           </span>
           <br />
-          Delivered Instantly
+          {t('home.heroTitle3')}
         </h1>
 
         <p className="text-gray-400 text-lg sm:text-xl max-w-2xl mx-auto mb-10 leading-relaxed">
-          Browse thousands of verified gaming accounts — rare skins, high ranks, and exclusive items.
-          Secure checkout in seconds with Stripe.
+          {t('home.heroDesc')}
         </p>
 
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16">
-          <Link href="/products">
-            <Button size="lg" variant="primary">
-              Browse Accounts →
-            </Button>
+          <Link
+            href="/products"
+            className="inline-flex items-center justify-center px-8 py-4 bg-violet-600 hover:bg-violet-500 text-white font-bold rounded-xl text-lg transition-all duration-200 shadow-[0_0_30px_rgba(124,58,237,0.4)] hover:shadow-[0_0_40px_rgba(124,58,237,0.6)]"
+          >
+            {t('home.browseAccounts')}
           </Link>
-          <Link href="/products?featured=true">
-            <Button size="lg" variant="outline">
-              View Featured
-            </Button>
+          <Link
+            href="/products?featured=true"
+            className="inline-flex items-center justify-center px-8 py-4 bg-transparent border border-gray-700 hover:border-violet-500/50 text-gray-300 hover:text-white font-bold rounded-xl text-lg transition-all duration-200"
+          >
+            {t('home.viewFeatured')}
           </Link>
         </div>
 
         {/* Stats */}
         <div className="flex flex-wrap justify-center gap-8 sm:gap-16">
-          {[
-            { value: '500+', label: 'Accounts Listed' },
-            { value: '1,200+', label: 'Happy Buyers' },
-            { value: '< 5min', label: 'Avg. Delivery' },
-            { value: '4.9★', label: 'Rating' },
-          ].map((stat) => (
-            <div key={stat.label} className="text-center">
+          {stats.map((stat) => (
+            <div key={stat.labelKey} className="text-center">
               <div className="text-2xl font-bold text-white">{stat.value}</div>
-              <div className="text-gray-500 text-sm mt-0.5">{stat.label}</div>
+              <div className="text-gray-500 text-sm mt-0.5">{t(stat.labelKey)}</div>
             </div>
           ))}
         </div>

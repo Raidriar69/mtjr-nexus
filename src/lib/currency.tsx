@@ -3,13 +3,13 @@ import { createContext, useContext, useState, useEffect, ReactNode, useCallback 
 
 export type CurrencyCode = 'USD' | 'OMR' | 'SAR' | 'AED' | 'KWD' | 'BHD';
 
-export const CURRENCIES: { code: CurrencyCode; symbol: string; name: string }[] = [
-  { code: 'USD', symbol: '$',   name: 'US Dollar' },
-  { code: 'OMR', symbol: 'ر.ع', name: 'Omani Rial' },
-  { code: 'SAR', symbol: 'ر.س', name: 'Saudi Riyal' },
-  { code: 'AED', symbol: 'د.إ', name: 'UAE Dirham' },
-  { code: 'KWD', symbol: 'د.ك', name: 'Kuwaiti Dinar' },
-  { code: 'BHD', symbol: 'BD',  name: 'Bahraini Dinar' },
+export const CURRENCIES: { code: CurrencyCode; symbol: string; name: string; flag: string }[] = [
+  { code: 'USD', symbol: '$',   name: 'US Dollar',      flag: '🇺🇸' },
+  { code: 'OMR', symbol: 'ر.ع', name: 'Omani Rial',     flag: '🇴🇲' },
+  { code: 'SAR', symbol: 'ر.س', name: 'Saudi Riyal',    flag: '🇸🇦' },
+  { code: 'AED', symbol: 'د.إ', name: 'UAE Dirham',     flag: '🇦🇪' },
+  { code: 'KWD', symbol: 'د.ك', name: 'Kuwaiti Dinar',  flag: '🇰🇼' },
+  { code: 'BHD', symbol: 'BD',  name: 'Bahraini Dinar', flag: '🇧🇭' },
 ];
 
 // GCC currencies are pegged — fallback rates are very stable

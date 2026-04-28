@@ -84,7 +84,11 @@ export function Navbar() {
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-800/60 border border-gray-700/50 hover:border-violet-500/40 text-gray-400 hover:text-white text-xs font-medium transition-all"
               title={t('common.language')}
             >
-              {lang === 'en' ? '🇺🇸 EN' : '🇸🇦 AR'}
+              {lang === 'en' ? (
+                <><span className="text-base leading-none">🇺🇸</span><span>EN</span></>
+              ) : (
+                <><span className="text-base leading-none">🇸🇦</span><span>AR</span></>
+              )}
             </button>
 
             {/* Currency dropdown */}
@@ -94,25 +98,27 @@ export function Navbar() {
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-800/60 border border-gray-700/50 hover:border-violet-500/40 text-gray-400 hover:text-white text-xs font-medium transition-all"
                 title={t('common.currency')}
               >
-                {currency}
+                <span className="text-base leading-none">{CURRENCIES.find(c => c.code === currency)?.flag}</span>
+                <span>{currency}</span>
                 <svg className={`w-3 h-3 transition-transform ${currencyOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
               </button>
               {currencyOpen && (
-                <div className="absolute top-full mt-1 right-0 w-44 bg-gray-900 border border-gray-700 rounded-xl shadow-xl overflow-hidden z-50">
+                <div className="absolute top-full mt-1 right-0 w-52 bg-gray-900 border border-gray-700 rounded-xl shadow-xl overflow-hidden z-50">
                   {CURRENCIES.map((c) => (
                     <button
                       key={c.code}
                       onClick={() => { setCurrency(c.code as CurrencyCode); setCurrencyOpen(false); }}
-                      className={`w-full flex items-center justify-between px-4 py-2.5 text-sm transition-colors ${
+                      className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
                         currency === c.code
                           ? 'bg-violet-600/20 text-violet-300'
                           : 'text-gray-400 hover:bg-gray-800 hover:text-white'
                       }`}
                     >
-                      <span>{c.code}</span>
-                      <span className="text-gray-500 text-xs">{c.name}</span>
+                      <span className="text-base leading-none flex-shrink-0">{c.flag}</span>
+                      <span className="font-medium flex-shrink-0">{c.code}</span>
+                      <span className="text-gray-500 text-xs ml-auto">{c.symbol}</span>
                     </button>
                   ))}
                 </div>
@@ -173,9 +179,9 @@ export function Navbar() {
           <div className="flex md:hidden items-center gap-2">
             <button
               onClick={() => setLang(lang === 'en' ? 'ar' : 'en')}
-              className="text-xs text-gray-500 hover:text-gray-300 px-2 py-1 rounded transition-colors"
+              className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-300 px-2 py-1 rounded transition-colors"
             >
-              {lang === 'en' ? 'AR' : 'EN'}
+              {lang === 'en' ? <><span className="text-sm">🇸🇦</span><span>AR</span></> : <><span className="text-sm">🇺🇸</span><span>EN</span></>}
             </button>
             <Link href="/cart" className="relative flex items-center justify-center w-9 h-9 text-gray-400">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -224,13 +230,14 @@ export function Navbar() {
                   <button
                     key={c.code}
                     onClick={() => setCurrency(c.code as CurrencyCode)}
-                    className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
+                    className={`flex items-center gap-1 px-2.5 py-1 rounded text-xs font-medium transition-colors ${
                       currency === c.code
                         ? 'bg-violet-600 text-white'
                         : 'bg-gray-800 text-gray-400 hover:text-white'
                     }`}
                   >
-                    {c.code}
+                    <span>{c.flag}</span>
+                    <span>{c.code}</span>
                   </button>
                 ))}
               </div>

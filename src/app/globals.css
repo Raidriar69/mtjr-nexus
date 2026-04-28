@@ -78,3 +78,24 @@ body {
     @apply bg-gradient-to-r from-violet-400 to-cyan-400 bg-clip-text text-transparent;
   }
 }
+
+/* ── Testimonials carousel animations ──────────────────────────────────────── */
+@keyframes testimonials-scroll-left {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+@keyframes testimonials-scroll-right {
+  0%   { transform: translateX(-50%); }
+  100% { transform: translateX(0); }
+}
+
+.testimonials-scroll-left {
+  animation: testimonials-scroll-left linear infinite;
+  will-change: transform;
+}
+
+.testimonials-scroll-right {
+  animation: testimonials-scroll-right linear infinite;
+  will-change: transform;
+}
