@@ -14,6 +14,9 @@ interface OrderDetail {
   currency: string;
   status: string;
   paymentMethod?: string;
+  paypalManual?: boolean;
+  paypalInvoiceId?: string;
+  paypalVerificationCode?: string;
   quantity: number;
   createdAt: string;
   deliveryDetails?: { email?: string; password?: string; instructions?: string };
@@ -23,10 +26,12 @@ interface OrderDetail {
 
 function StatusBadge({ status, t }: { status: string; t: (k: any) => string }) {
   const map: Record<string, { label: string; classes: string }> = {
-    completed: { label: t('orders.statusCompleted'), classes: 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20' },
-    pending:   { label: t('orders.statusPending'),   classes: 'bg-amber-500/15 text-amber-400 border border-amber-500/20' },
-    failed:    { label: t('orders.statusFailed'),     classes: 'bg-red-500/15 text-red-400 border border-red-500/20' },
-    refunded:  { label: t('orders.statusRefunded'),   classes: 'bg-blue-500/15 text-blue-400 border border-blue-500/20' },
+    completed:            { label: t('orders.statusCompleted'),  classes: 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20' },
+    pending:              { label: t('orders.statusPending'),    classes: 'bg-amber-500/15 text-amber-400 border border-amber-500/20' },
+    waiting_confirmation: { label: t('orders.statusWaiting'),   classes: 'bg-blue-500/15 text-blue-400 border border-blue-500/20' },
+    failed:               { label: t('orders.statusFailed'),     classes: 'bg-red-500/15 text-red-400 border border-red-500/20' },
+    rejected:             { label: t('orders.statusRejected'),   classes: 'bg-red-600/15 text-red-400 border border-red-500/20' },
+    refunded:             { label: t('orders.statusRefunded'),   classes: 'bg-gray-500/15 text-gray-400 border border-gray-500/20' },
   };
   const { label, classes } = map[status] ?? { label: status, classes: 'bg-gray-700 text-gray-300' };
   return (
@@ -49,7 +54,6 @@ export default function OrderDetailPage() {
   const [error, setError] = useState('');
 
   // Warning gate state
-  const [showWarning, setShowWarning] = useState(false);
   const [warningAcked, setWarningAcked] = useState(false);
 
   // Per-credential reveal toggles
@@ -105,6 +109,11 @@ export default function OrderDetailPage() {
     });
   }
 
+  // ── Waiting for confirmation (PayPal manual, user already marked paid) ──────
+  const isWaiting  = order.status === 'waiting_confirmation';
+  const isRejected = order.status === 'rejected';
+  const isPending  = order.status === 'pending';
+
   return (
     <div className="min-h-screen bg-gray-950 pt-20 pb-16">
       <div className="max-w-2xl mx-auto px-4 py-10">
@@ -126,6 +135,11 @@ export default function OrderDetailPage() {
             <div>
               <h1 className="text-white font-black text-xl mb-1">{t('orders.orderDetails')}</h1>
               <p className="text-gray-600 text-xs font-mono">#{order._id.slice(-12).toUpperCase()}</p>
+              {order.paypalInvoiceId && (
+                <p className="text-[#009cde] font-mono text-xs mt-0.5">
+                  Invoice: {order.paypalInvoiceId}
+                </p>
+              )}
             </div>
             <StatusBadge status={order.status} t={t} />
           </div>
@@ -172,7 +186,9 @@ export default function OrderDetailPage() {
             {order.paymentMethod && (
               <div>
                 <p className="text-gray-600 text-xs mb-0.5">{t('orders.paymentMethodLabel')}</p>
-                <p className="text-gray-300 capitalize">{order.paymentMethod}</p>
+                <p className="text-gray-300 capitalize">
+                  {order.paymentMethod === 'paypal_manual' ? '🅿️ PayPal (Manual)' : order.paymentMethod}
+                </p>
               </div>
             )}
             {order.quantity > 1 && (
@@ -184,7 +200,69 @@ export default function OrderDetailPage() {
           </div>
         </div>
 
-        {/* Credentials section */}
+        {/* ── WAITING FOR CONFIRMATION ── */}
+        {isWaiting && (
+          <div className="bg-gray-900 border border-blue-500/30 rounded-2xl p-6 mb-5">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 bg-blue-500/15 border border-blue-500/25 rounded-xl flex items-center justify-center flex-shrink-0">
+                <svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div>
+                <h2 className="text-blue-300 font-bold text-sm">{t('orders.awaitingTitle')}</h2>
+                <p className="text-gray-500 text-xs">{t('orders.awaitingSubtext')}</p>
+              </div>
+            </div>
+            {order.paypalVerificationCode && (
+              <div className="bg-gray-800/60 rounded-xl p-4 mt-2">
+                <p className="text-gray-500 text-xs mb-1.5">Your verification code (for reference)</p>
+                <p className="text-amber-300 font-mono text-sm font-semibold">{order.paypalVerificationCode}</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── PENDING (not yet marked paid) ── */}
+        {isPending && order.paypalManual && (
+          <div className="bg-gray-900 border border-amber-500/30 rounded-2xl p-6 mb-5">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 bg-amber-500/15 border border-amber-500/25 rounded-xl flex items-center justify-center flex-shrink-0">
+                <svg className="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <div>
+                <h2 className="text-amber-400 font-bold text-sm">Payment Not Submitted</h2>
+                <p className="text-gray-500 text-xs">You haven't marked this order as paid yet.</p>
+              </div>
+            </div>
+            {order.paypalInvoiceId && (
+              <p className="text-gray-500 text-xs">
+                Invoice: <span className="text-white font-mono">{order.paypalInvoiceId}</span>
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* ── REJECTED ── */}
+        {isRejected && (
+          <div className="bg-gray-900 border border-red-500/30 rounded-2xl p-6 mb-5">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 bg-red-500/15 border border-red-500/25 rounded-xl flex items-center justify-center flex-shrink-0">
+                <svg className="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </div>
+              <div>
+                <h2 className="text-red-400 font-bold text-sm">{t('orders.rejectedTitle')}</h2>
+                <p className="text-gray-500 text-xs">{t('orders.rejectedSubtext')}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── CREDENTIALS (completed) ── */}
         {order.status === 'completed' && (
           <div className="mb-5">
             {!hasCredentials ? (
@@ -192,7 +270,7 @@ export default function OrderDetailPage() {
                 <p className="text-gray-500 text-sm">{t('orders.noCredentials')}</p>
               </div>
             ) : !warningAcked ? (
-              /* ── Warning gate ── */
+              /* Warning gate */
               <div className="bg-gray-900 border border-amber-500/30 rounded-2xl p-6">
                 <div className="flex items-center gap-3 mb-4">
                   <div className="w-10 h-10 bg-amber-500/15 border border-amber-500/25 rounded-xl flex items-center justify-center flex-shrink-0">
@@ -213,7 +291,7 @@ export default function OrderDetailPage() {
                 </button>
               </div>
             ) : (
-              /* ── Credentials revealed ── */
+              /* Credentials revealed */
               <div className="space-y-4">
                 <h2 className="text-white font-bold text-lg">{t('orders.credentials')}</h2>
 

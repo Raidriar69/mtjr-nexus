@@ -1,19 +1,38 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
+export type OrderStatus =
+  | 'pending'
+  | 'waiting_confirmation'
+  | 'completed'
+  | 'failed'
+  | 'refunded'
+  | 'rejected';
+
 export interface IOrder extends Document {
   userId?: string;
   buyerEmail: string;
   productId: mongoose.Types.ObjectId;
   amount: number;
   currency: string;
-  status: 'pending' | 'completed' | 'failed' | 'refunded';
-  paymentMethod?: 'stripe' | 'paypal' | 'crypto';
+  status: OrderStatus;
+  paymentMethod?: 'stripe' | 'paypal' | 'crypto' | 'paypal_manual' | 'crypto_manual';
   quantity: number;
   stripePaymentIntentId?: string;
   stripeSessionId?: string;
   paypalOrderId?: string;
   cryptoPaymentId?: string;
   cryptoCurrency?: string;
+  // ── Manual PayPal fields ────────────────────────────────────────────────────
+  paypalInvoiceId?: string;          // e.g. "INV-A3B2C1D4"
+  paypalVerificationCode?: string;   // e.g. "couch – tiger – lamp – rocket"
+  paypalManual?: boolean;            // true = manual PayPal verification flow
+  // ── Manual Crypto fields ────────────────────────────────────────────────────
+  cryptoInvoiceId?: string;          // e.g. "INV-B7D3E1F8"
+  cryptoManualAmount?: number;       // unique amount with noise, e.g. 0.000443642
+  cryptoManualCoin?: string;         // BTC | ETH | SOL | LTC
+  cryptoManualAddress?: string;      // destination wallet address
+  cryptoManual?: boolean;            // true = manual crypto verification flow
+  // ── Delivery ────────────────────────────────────────────────────────────────
   deliveryDetails?: {
     email?: string;
     password?: string;
@@ -33,12 +52,12 @@ const OrderSchema = new Schema<IOrder>(
     currency: { type: String, default: 'usd' },
     status: {
       type: String,
-      enum: ['pending', 'completed', 'failed', 'refunded'],
+      enum: ['pending', 'waiting_confirmation', 'completed', 'failed', 'refunded', 'rejected'],
       default: 'pending',
     },
     paymentMethod: {
       type: String,
-      enum: ['stripe', 'paypal', 'crypto'],
+      enum: ['stripe', 'paypal', 'crypto', 'paypal_manual', 'crypto_manual'],
       default: 'stripe',
     },
     quantity: { type: Number, default: 1 },
@@ -47,6 +66,14 @@ const OrderSchema = new Schema<IOrder>(
     paypalOrderId: { type: String },
     cryptoPaymentId: { type: String },
     cryptoCurrency: { type: String },
+    paypalInvoiceId: { type: String },
+    paypalVerificationCode: { type: String },
+    paypalManual: { type: Boolean, default: false },
+    cryptoInvoiceId: { type: String },
+    cryptoManualAmount: { type: Number },
+    cryptoManualCoin: { type: String },
+    cryptoManualAddress: { type: String },
+    cryptoManual: { type: Boolean, default: false },
     deliveryDetails: {
       email: { type: String },
       password: { type: String },

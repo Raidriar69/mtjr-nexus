@@ -1,130 +1,129 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
-import dynamic from 'next/dynamic';
+import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { Product } from '@/types';
 
-// Load PayPal buttons only client-side
-const PayPalCheckoutPanel = dynamic(() => import('./PayPalCheckoutPanel'), {
-  ssr: false,
-  loading: () => (
-    <div className="h-12 bg-gray-800 animate-pulse rounded-xl" />
-  ),
-});
-
-type PaymentTab = 'stripe' | 'paypal' | 'crypto';
 type CryptoCoin = 'BTC' | 'ETH' | 'SOL' | 'LTC';
+type Method = 'paypal' | CryptoCoin;
 
-const COIN_ICONS: Record<CryptoCoin, string> = { BTC: '₿', ETH: 'Ξ', SOL: '◎', LTC: 'Ł' };
-const COIN_COLORS: Record<CryptoCoin, string> = {
-  BTC: 'border-orange-500/60 text-orange-400 bg-orange-500/10',
-  ETH: 'border-blue-500/60 text-blue-400 bg-blue-500/10',
-  SOL: 'border-purple-500/60 text-purple-400 bg-purple-500/10',
-  LTC: 'border-gray-400/60 text-gray-300 bg-gray-400/10',
+const COINS: CryptoCoin[] = ['BTC', 'ETH', 'SOL', 'LTC'];
+const COIN_ICON: Record<CryptoCoin, string> = { BTC: '/icons/btc.png', ETH: '/icons/eth.png', SOL: '/icons/sol.png', LTC: '/icons/ltc.png' };
+const COIN_ACCENT: Record<CryptoCoin, string> = {
+  BTC: 'border-orange-500/60 bg-orange-500/10 text-orange-400',
+  ETH: 'border-blue-500/60   bg-blue-500/10   text-blue-400',
+  SOL: 'border-purple-500/60 bg-purple-500/10 text-purple-400',
+  LTC: 'border-gray-400/50   bg-gray-400/10   text-gray-300',
 };
 
-interface Props {
-  product: Product;
-}
+interface Props { product: Product; }
 
 export function CheckoutModal({ product }: Props) {
   const { data: session } = useSession();
-  const [open, setOpen] = useState(false);
-  const [tab, setTab] = useState<PaymentTab>('stripe');
-  const [email, setEmail] = useState('');
-  const [coin, setCoin] = useState<CryptoCoin>('BTC');
+  const router = useRouter();
+  const [open, setOpen]       = useState(false);
+  const [method, setMethod]   = useState<Method>('paypal');
+  const [email, setEmail]     = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Populate email from session
   useEffect(() => {
     if (session?.user?.email) setEmail(session.user.email);
   }, [session]);
 
-  // Lock body scroll when modal open
   useEffect(() => {
-    if (open) document.body.style.overflow = 'hidden';
-    else document.body.style.overflow = '';
+    document.body.style.overflow = open ? 'hidden' : '';
     return () => { document.body.style.overflow = ''; };
   }, [open]);
 
   if (product.isSold) {
     return (
-      <div className="w-full bg-gray-800/60 border border-gray-700 rounded-xl py-4 text-center text-gray-500 font-semibold text-lg tracking-wide">
+      <div className="w-full bg-gray-800/60 border border-gray-700 rounded-xl py-4 text-center text-gray-500 font-semibold text-lg">
         Account Sold
       </div>
     );
   }
 
-  async function handleStripe() {
-    const buyerEmail = email.trim();
-    if (!buyerEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(buyerEmail)) {
+  function validateEmail(): boolean {
+    if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
       toast.error('Enter a valid email address');
-      return;
+      return false;
     }
+    return true;
+  }
+
+  async function handleProceed() {
+    if (!validateEmail()) return;
     setLoading(true);
+
     try {
-      const res = await fetch('/api/stripe/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ productId: product._id, buyerEmail }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Checkout failed');
-      window.location.href = data.url;
+      const productIds = [product._id];
+      const quantities = [1];
+      const buyerEmail = email.trim();
+
+      if (method === 'paypal') {
+        const res = await fetch('/api/paypal/create-manual', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ productIds, quantities, buyerEmail }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to create order');
+
+        const params = new URLSearchParams({
+          order_ids:  data.orderIds.join(','),
+          invoice_id: data.paypalInvoiceId,
+          code:       data.paypalVerificationCode,
+          total:      String(data.totalCents),
+          products:   encodeURIComponent(JSON.stringify(data.products)),
+        });
+        router.push(`/checkout/paypal?${params.toString()}`);
+      } else {
+        const res = await fetch('/api/crypto/create-manual', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ productIds, quantities, buyerEmail, coin: method }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to create order');
+
+        const params = new URLSearchParams({
+          order_ids:     data.orderIds.join(','),
+          invoice_id:    data.cryptoInvoiceId,
+          coin:          data.coin,
+          crypto_amount: String(data.cryptoManualAmount),
+          wallet:        data.walletAddress,
+          total:         String(data.totalCents),
+          products:      encodeURIComponent(JSON.stringify(data.products)),
+        });
+        router.push(`/checkout/crypto?${params.toString()}`);
+      }
     } catch (err: any) {
-      toast.error(err.message || 'Stripe checkout failed');
+      toast.error(err.message || 'Something went wrong');
       setLoading(false);
     }
   }
 
-  async function handleCrypto() {
-    const buyerEmail = email.trim();
-    if (!buyerEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(buyerEmail)) {
-      toast.error('Enter a valid email address');
-      return;
-    }
-    setLoading(true);
-    try {
-      const res = await fetch('/api/crypto/create-payment', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ productId: product._id, buyerEmail, coin }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Crypto payment failed');
-      window.location.href = data.url;
-    } catch (err: any) {
-      toast.error(err.message || 'Crypto payment failed');
-      setLoading(false);
-    }
-  }
+  const isPayPal   = method === 'paypal';
+  const isCrypto   = !isPayPal;
 
   return (
     <>
-      {/* Trigger Button */}
+      {/* Trigger */}
       <button
         onClick={() => setOpen(true)}
-        className="w-full relative overflow-hidden bg-violet-600 hover:bg-violet-500 text-white font-bold py-4 rounded-xl text-lg transition-all duration-200 hover:shadow-[0_0_40px_rgba(139,92,246,0.5)] active:scale-[0.98] group"
+        className="w-full bg-violet-600 hover:bg-violet-500 text-white font-bold py-4 rounded-xl text-lg transition-all duration-200 hover:shadow-[0_0_30px_rgba(139,92,246,0.4)] active:scale-[0.98]"
       >
-        <span className="relative z-10">
-          Buy Now — ${product.price.toFixed(2)}
-        </span>
-        <div className="absolute inset-0 bg-gradient-to-r from-violet-600 via-purple-600 to-violet-600 opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-[length:200%_100%] animate-gradient" />
+        Buy Now — ${product.price.toFixed(2)}
       </button>
 
-      {/* Modal Backdrop + Panel */}
+      {/* Modal */}
       {open && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
-          {/* Backdrop */}
-          <div
-            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
-            onClick={() => { if (!loading) setOpen(false); }}
-          />
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => { if (!loading) setOpen(false); }} />
 
-          {/* Panel */}
           <div className="relative w-full sm:max-w-md bg-gray-900 border border-gray-700/80 rounded-t-3xl sm:rounded-2xl shadow-2xl z-10 max-h-[92vh] overflow-y-auto">
-            {/* Handle bar (mobile) */}
+            {/* Mobile handle */}
             <div className="flex justify-center pt-3 pb-1 sm:hidden">
               <div className="w-10 h-1 bg-gray-700 rounded-full" />
             </div>
@@ -152,41 +151,13 @@ export function CheckoutModal({ product }: Props) {
                   <p className="text-gray-500 text-xs uppercase tracking-wider">{product.game}</p>
                   <p className="text-gray-300 text-sm mt-0.5 max-w-[180px] truncate">{product.title}</p>
                 </div>
-                <div className="text-right flex-shrink-0">
-                  <p className="text-white font-black text-2xl">${product.price.toFixed(2)}</p>
-                  {product.originalPrice && product.originalPrice > product.price && (
-                    <p className="text-gray-600 text-xs line-through">${product.originalPrice.toFixed(2)}</p>
-                  )}
-                </div>
+                <p className="text-white font-black text-2xl flex-shrink-0">${product.price.toFixed(2)}</p>
               </div>
 
-              {/* Payment method tabs */}
-              <div className="grid grid-cols-3 gap-1.5 bg-gray-800/60 rounded-xl p-1 mb-5">
-                {[
-                  { id: 'stripe' as const, icon: '💳', label: 'Card', sub: 'Stripe' },
-                  { id: 'paypal' as const, icon: '🅿️', label: 'PayPal', sub: 'PayPal' },
-                  { id: 'crypto' as const, icon: '₿', label: 'Crypto', sub: 'BTC/ETH' },
-                ].map((t) => (
-                  <button
-                    key={t.id}
-                    onClick={() => { setTab(t.id); setLoading(false); }}
-                    className={`py-2.5 px-1 rounded-lg text-xs font-semibold transition-all duration-200 ${
-                      tab === t.id
-                        ? 'bg-violet-600 text-white shadow-lg shadow-violet-900/50'
-                        : 'text-gray-500 hover:text-gray-300'
-                    }`}
-                  >
-                    <div className="text-base mb-0.5">{t.icon}</div>
-                    <div>{t.label}</div>
-                    <div className="opacity-60 text-[10px]">{t.sub}</div>
-                  </button>
-                ))}
-              </div>
-
-              {/* Email field (always shown — pre-filled if logged in) */}
-              <div className="mb-4">
+              {/* Email */}
+              <div className="mb-5">
                 <label className="text-gray-400 text-xs font-medium mb-1.5 block">
-                  Email for order receipt
+                  Email for order receipt &amp; credentials
                 </label>
                 <input
                   type="email"
@@ -198,117 +169,97 @@ export function CheckoutModal({ product }: Props) {
                 />
               </div>
 
-              {/* ── STRIPE TAB ── */}
-              {tab === 'stripe' && (
-                <div className="space-y-3">
-                  <button
-                    onClick={handleStripe}
-                    disabled={loading}
-                    className="w-full bg-violet-600 hover:bg-violet-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3.5 rounded-xl transition-all hover:shadow-[0_0_25px_rgba(139,92,246,0.35)] flex items-center justify-center gap-2 text-sm"
-                  >
-                    {loading ? <Spinner /> : <><CardIcon /> Pay with Card</>}
-                  </button>
-                  <div className="flex items-center gap-2 justify-center">
-                    <div className="h-px flex-1 bg-gray-800" />
-                    <span className="text-gray-600 text-xs">Accepts</span>
-                    <div className="h-px flex-1 bg-gray-800" />
+              {/* Payment method selector */}
+              <div className="mb-5">
+                <p className="text-gray-500 text-xs font-medium uppercase tracking-wider mb-3">Payment Method</p>
+
+                {/* PayPal option */}
+                <button
+                  onClick={() => setMethod('paypal')}
+                  className={`w-full flex items-center gap-3 p-3.5 rounded-xl border-2 mb-2 text-left transition-all ${
+                    isPayPal
+                      ? 'border-[#009cde]/50 bg-[#009cde]/8 text-[#009cde]'
+                      : 'border-gray-800 bg-gray-800/30 hover:border-gray-700'
+                  }`}
+                >
+                  <div className="w-8 h-8 flex items-center justify-center flex-shrink-0">
+                    <img src="/icons/paypal-p.png" alt="PayPal" className="w-8 h-8 object-contain" />
                   </div>
-                  <div className="flex items-center justify-center gap-3 text-xs text-gray-500">
-                    <span>Visa</span>
-                    <span>·</span>
-                    <span>Mastercard</span>
-                    <span>·</span>
-                    <span>Apple Pay</span>
-                    <span>·</span>
-                    <span>Google Pay</span>
+                  <div className="flex-1 min-w-0">
+                    <p className={`font-bold text-sm ${isPayPal ? '' : 'text-gray-300'}`}>PayPal</p>
+                    <p className="text-gray-500 text-xs">Send to mkx399@gmail.com · 1–60 min</p>
                   </div>
-                  <p className="text-center text-gray-700 text-xs">
-                    🔒 Secured by Stripe — PCI DSS Level 1
-                  </p>
-                </div>
-              )}
-
-              {/* ── PAYPAL TAB ── */}
-              {tab === 'paypal' && (
-                <div className="space-y-3">
-                  <PayPalCheckoutPanel
-                    product={product}
-                    buyerEmail={email}
-                    onSuccess={(orderId) => {
-                      setOpen(false);
-                      window.location.href = `/checkout/success?order_id=${orderId}`;
-                    }}
-                  />
-                  <p className="text-center text-gray-700 text-xs mt-2">
-                    🔒 Secured by PayPal — Buyer Protection included
-                  </p>
-                </div>
-              )}
-
-              {/* ── CRYPTO TAB ── */}
-              {tab === 'crypto' && (
-                <div className="space-y-4">
-                  <div>
-                    <p className="text-gray-400 text-xs font-medium mb-2">Select cryptocurrency</p>
-                    <div className="grid grid-cols-4 gap-2">
-                      {(Object.keys(COIN_ICONS) as CryptoCoin[]).map((c) => (
-                        <button
-                          key={c}
-                          onClick={() => setCoin(c)}
-                          className={`py-3 rounded-xl text-sm font-bold border transition-all duration-150 ${
-                            coin === c
-                              ? COIN_COLORS[c]
-                              : 'border-gray-700 text-gray-500 bg-transparent hover:border-gray-600 hover:text-gray-300'
-                          }`}
-                        >
-                          <div className="text-xl mb-1">{COIN_ICONS[c]}</div>
-                          <div className="text-xs">{c}</div>
-                        </button>
-                      ))}
-                    </div>
+                  <div className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${isPayPal ? 'border-[#009cde]' : 'border-gray-600'}`}>
+                    {isPayPal && <div className="w-2 h-2 rounded-full bg-[#009cde]" />}
                   </div>
+                </button>
 
-                  <button
-                    onClick={handleCrypto}
-                    disabled={loading}
-                    className="w-full bg-amber-500 hover:bg-amber-400 disabled:opacity-50 disabled:cursor-not-allowed text-gray-900 font-bold py-3.5 rounded-xl transition-all flex items-center justify-center gap-2 text-sm"
-                  >
-                    {loading ? <Spinner dark /> : <><span className="text-lg">{COIN_ICONS[coin]}</span> Pay with {coin}</>}
-                  </button>
-                  <p className="text-center text-gray-600 text-xs">
-                    Via NOWPayments · Payment confirmed on-chain
-                  </p>
+                {/* Crypto grid */}
+                <div className="grid grid-cols-4 gap-2">
+                  {COINS.map((c) => (
+                    <button
+                      key={c}
+                      onClick={() => setMethod(c)}
+                      className={`py-3 px-1 rounded-xl border-2 text-xs font-bold transition-all flex flex-col items-center gap-1.5 ${
+                        method === c ? COIN_ACCENT[c] : 'border-gray-800 text-gray-500 hover:border-gray-700 hover:text-gray-300'
+                      }`}
+                    >
+                      <img src={COIN_ICON[c]} alt={c} className="w-6 h-6 object-contain" />
+                      {c}
+                    </button>
+                  ))}
                 </div>
-              )}
+              </div>
 
-              {/* Footer note */}
-              <p className="text-gray-700 text-xs text-center mt-5 flex items-center justify-center gap-1">
+              {/* Info strip */}
+              <div className={`rounded-xl p-3 mb-5 text-xs leading-relaxed ${
+                isPayPal
+                  ? 'bg-[#009cde]/5 border border-[#009cde]/20 text-[#009cde]/80'
+                  : 'bg-amber-500/5 border border-amber-500/20 text-amber-400/80'
+              }`}>
+                {isPayPal
+                  ? "You'll get a unique 4-word code. Send the exact amount to mkx399@gmail.com on PayPal with the code in the note. Approved within 1 hour."
+                  : `You'll get the exact ${method} amount (unique per order) and wallet address. Send it on-chain, then click "Mark as Paid". Approved after on-chain verification.`
+                }
+              </div>
+
+              {/* CTA */}
+              <button
+                onClick={handleProceed}
+                disabled={loading}
+                className={`w-full text-white font-black py-3.5 rounded-xl text-base transition-all flex items-center justify-center gap-2.5 disabled:opacity-50 disabled:cursor-not-allowed ${
+                  isPayPal    ? 'bg-[#009cde] hover:bg-[#00b4f0] shadow-[0_0_20px_rgba(0,156,222,0.3)]' :
+                  method === 'BTC' ? 'bg-orange-500 hover:bg-orange-400 shadow-[0_0_20px_rgba(249,115,22,0.3)]' :
+                  method === 'ETH' ? 'bg-blue-600 hover:bg-blue-500 shadow-[0_0_20px_rgba(59,130,246,0.3)]' :
+                  method === 'SOL' ? 'bg-purple-600 hover:bg-purple-500 shadow-[0_0_20px_rgba(168,85,247,0.3)]' :
+                  'bg-gray-600 hover:bg-gray-500'
+                }`}
+              >
+                {loading ? (
+                  <svg className="animate-spin w-5 h-5" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                ) : (
+                  <>
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                    Continue with {isPayPal ? 'PayPal' : method}
+                  </>
+                )}
+              </button>
+
+              <p className="text-gray-700 text-xs text-center mt-4 flex items-center justify-center gap-1">
                 <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
                 </svg>
-                All transactions are encrypted and secure
+                Manual verification · Credentials delivered after approval
               </p>
             </div>
           </div>
         </div>
       )}
     </>
-  );
-}
-
-function CardIcon() {
-  return (
-    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-    </svg>
-  );
-}
-
-function Spinner({ dark }: { dark?: boolean }) {
-  return (
-    <svg className={`animate-spin h-5 w-5 ${dark ? 'text-gray-900' : 'text-white'}`} viewBox="0 0 24 24" fill="none">
-      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-    </svg>
   );
 }

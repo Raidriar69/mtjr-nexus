@@ -15,6 +15,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     { href: '/admin/products', label: 'Products', icon: '🎮' },
     { href: '/admin/products/new', label: 'Add Product', icon: '➕' },
     { href: '/admin/orders', label: 'Orders', icon: '📦' },
+    { href: '/admin/orders?paypal=1', label: 'PayPal Verify', icon: '🅿️' },
   ];
 
   return (

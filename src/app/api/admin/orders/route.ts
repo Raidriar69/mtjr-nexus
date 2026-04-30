@@ -12,7 +12,7 @@ export async function GET() {
   try {
     await connectDB();
     const orders = await Order.find({})
-      .populate('productId', 'game title price images')
+      .populate('productId', 'game title price images productType')
       .sort({ createdAt: -1 })
       .lean();
     return NextResponse.json({ orders });
