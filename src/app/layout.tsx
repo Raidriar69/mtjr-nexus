@@ -5,14 +5,7 @@ import { authOptions } from '@/lib/auth';
 import { Providers } from './providers';
 import { Navbar } from '@/components/layout/Navbar';
 import { Footer } from '@/components/layout/Footer';
-import dynamic from 'next/dynamic';
 import './globals.css';
-
-// Canvas component — client-only, no SSR (window/canvas not available on server)
-const ParticleBackground = dynamic(
-  () => import('@/components/ui/ParticleBackground').then((m) => m.ParticleBackground),
-  { ssr: false }
-);
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 
@@ -34,11 +27,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang="en" className={inter.variable}>
       <body className="bg-gray-950 text-gray-100 min-h-screen flex flex-col">
-        {/* Particle canvas sits behind everything */}
-        <ParticleBackground />
         <Providers session={session}>
           <Navbar />
-          <main className="flex-1" style={{ position: 'relative', zIndex: 2 }}>
+          <main className="flex-1">
             {children}
           </main>
           <Footer />
