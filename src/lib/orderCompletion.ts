@@ -3,16 +3,56 @@ import Product from '@/models/Product';
 import Order from '@/models/Order';
 import { sendOrderConfirmation, sendBulkOrderConfirmation } from './email';
 
+// ── Atomic helpers ─────────────────────────────────────────────────────────────
+
 /**
- * Atomically claim one unsold bulk account.
- * Uses the positional $ operator so the find-then-update window is safe against races.
+ * Deliver the already-reserved accounts for an order (reserved → sold).
+ * Primary path: admin approves a manual-payment order that reserved stock upfront.
  */
-async function claimOneBulkAccount(
+async function deliverReservedAccounts(
+  productId: string,
+  orderId: string,
+  qty: number
+): Promise<{ email: string; password: string }[]> {
+  const delivered: { email: string; password: string }[] = [];
+
+  for (let i = 0; i < qty; i++) {
+    const snapshot = await Product.findOne(
+      { _id: productId, 'accounts.status': 'reserved', 'accounts.orderId': orderId },
+      { 'accounts.$': 1 } as any
+    ).lean() as any;
+
+    if (!snapshot?.accounts?.[0]) break; // no more reserved accounts for this order
+
+    const acct = snapshot.accounts[0];
+
+    const updated = await Product.findOneAndUpdate(
+      {
+        _id: productId,
+        'accounts._id': acct._id,
+        'accounts.status': 'reserved',
+        'accounts.orderId': orderId,
+      },
+      { $set: { 'accounts.$.status': 'sold', 'accounts.$.orderId': null } }
+    );
+
+    if (updated) {
+      delivered.push({ email: acct.email, password: acct.password });
+    }
+  }
+
+  return delivered;
+}
+
+/**
+ * Fallback: atomically claim one *available* account (legacy path or first-time claims).
+ * Used when no pre-reservation exists — e.g. auto-completed Stripe payments.
+ */
+async function claimOneAvailableAccount(
   productId: string
 ): Promise<{ email: string; password: string } | null> {
-  // Project just the first unsold account using the positional operator
   const snapshot = await Product.findOne(
-    { _id: productId, 'accounts.sold': false },
+    { _id: productId, 'accounts.status': 'available' },
     { 'accounts.$': 1 } as any
   ).lean() as any;
 
@@ -20,17 +60,78 @@ async function claimOneBulkAccount(
 
   const acct = snapshot.accounts[0];
 
-  // Atomically mark that specific account sold by its subdoc _id
   const updated = await Product.findOneAndUpdate(
-    { _id: productId, 'accounts._id': acct._id, 'accounts.sold': false },
-    { $set: { 'accounts.$.sold': true } }
+    { _id: productId, 'accounts._id': acct._id, 'accounts.status': 'available' },
+    { $set: { 'accounts.$.status': 'sold' } }
   );
 
-  // Null means the account was claimed by a concurrent request — caller retries next slot
   if (!updated) return null;
-
   return { email: acct.email, password: acct.password };
 }
+
+/**
+ * Revert reserved → available for all accounts attached to an order.
+ * Called on admin rejection of a manual-payment order.
+ */
+export async function releaseReservedAccounts(
+  productId: string,
+  orderId: string
+): Promise<void> {
+  await connectDB();
+
+  await Product.updateMany(
+    { _id: productId, 'accounts.orderId': orderId, 'accounts.status': 'reserved' },
+    {
+      $set: {
+        'accounts.$[elem].status': 'available',
+        'accounts.$[elem].orderId': null,
+      },
+    },
+    {
+      arrayFilters: [{ 'elem.orderId': orderId, 'elem.status': 'reserved' }],
+    }
+  );
+
+  // If product was marked sold-out, reactivate it (stock is back)
+  await Product.findByIdAndUpdate(productId, { isSold: false });
+}
+
+// ── Reserve accounts on mark-paid ─────────────────────────────────────────────
+
+/**
+ * Atomically reserve `qty` available accounts for the given order.
+ * Returns true if all accounts were reserved, false if insufficient stock.
+ */
+export async function reserveAccountsForOrder(
+  productId: string,
+  orderId: string,
+  qty: number
+): Promise<boolean> {
+  await connectDB();
+
+  // Quick stock check (non-atomic pre-check to avoid unnecessary loops)
+  const product = await Product.findOne({ _id: productId }).lean() as any;
+  if (!product || product.productType !== 'bulk') return true; // not bulk — no reservation needed
+
+  const availableCount = (product.accounts ?? []).filter(
+    (a: any) => a.status === 'available'
+  ).length;
+
+  if (availableCount < qty) return false; // not enough stock
+
+  // Reserve one at a time atomically
+  for (let i = 0; i < qty; i++) {
+    const updated = await Product.findOneAndUpdate(
+      { _id: productId, 'accounts.status': 'available' },
+      { $set: { 'accounts.$.status': 'reserved', 'accounts.$.orderId': orderId } }
+    );
+    if (!updated) return false; // concurrent race ate the last slot
+  }
+
+  return true;
+}
+
+// ── Main completeOrder ────────────────────────────────────────────────────────
 
 /**
  * Complete an order: deliver credentials, update DB, send confirmation email.
@@ -38,7 +139,8 @@ async function claimOneBulkAccount(
  * Handles all three product types:
  *  - single  → marks product sold, delivers email+password
  *  - shared  → does NOT mark product sold (reusable), delivers email+password
- *  - bulk    → atomically claims qty accounts, delivers array of credentials
+ *  - bulk    → delivers pre-reserved accounts (reserved→sold); falls back to
+ *              claiming available if no reservation found (e.g. Stripe flow)
  *
  * Idempotent: already-completed orders are silently skipped.
  */
@@ -60,21 +162,30 @@ export async function completeOrder(
 
   // ── Bulk ──────────────────────────────────────────────────────────────────
   if (product.productType === 'bulk') {
-    const claimed: { email: string; password: string }[] = [];
+    let claimed: { email: string; password: string }[] = [];
 
-    for (let i = 0; i < qty; i++) {
-      const acct = await claimOneBulkAccount(String(product._id));
-      if (acct) claimed.push(acct);
+    // Primary path: deliver already-reserved accounts
+    claimed = await deliverReservedAccounts(String(product._id), orderId, qty);
+
+    // Fallback: claim available accounts (Stripe / legacy path)
+    if (claimed.length < qty) {
+      const fallbackNeeded = qty - claimed.length;
+      for (let i = 0; i < fallbackNeeded; i++) {
+        const acct = await claimOneAvailableAccount(String(product._id));
+        if (acct) claimed.push(acct);
+      }
     }
 
     if (claimed.length === 0) {
-      // Stock exhausted — shouldn't happen if checkout validates stock first
       await Order.findByIdAndUpdate(orderId, { status: 'failed', ...extraUpdates });
       return;
     }
 
-    // Mark product sold-out if no remaining unsold accounts
-    const stillInStock = await Product.exists({ _id: product._id, 'accounts.sold': false });
+    // Mark product sold-out if no remaining available or reserved accounts for other orders
+    const stillInStock = await Product.exists({
+      _id: product._id,
+      'accounts.status': 'available',
+    });
     if (!stillInStock) {
       await Product.findByIdAndUpdate(product._id, { isSold: true });
     }
@@ -96,7 +207,6 @@ export async function completeOrder(
 
   // ── Single / Shared ───────────────────────────────────────────────────────
   } else {
-    // Only permanently mark sold for 'single'; 'shared' stays available
     if (!product.productType || product.productType === 'single') {
       await Product.findByIdAndUpdate(product._id, { isSold: true });
     }

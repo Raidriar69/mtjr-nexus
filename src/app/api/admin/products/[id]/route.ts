@@ -26,12 +26,19 @@ export async function PUT(
     let product;
 
     if (appendAccounts?.length) {
+      // Normalise new accounts to use status field (strip any legacy sold flag)
+      const normalisedAccounts = appendAccounts.map((a: any) => ({
+        email: a.email,
+        password: a.password,
+        status: 'available',
+        orderId: null,
+      }));
       // Append new bulk accounts and re-activate the listing if it was sold out
       product = await Product.findByIdAndUpdate(
         params.id,
         {
           ...updateData,
-          $push: { accounts: { $each: appendAccounts } },
+          $push: { accounts: { $each: normalisedAccounts } },
           isSold: false,
         },
         { new: true }

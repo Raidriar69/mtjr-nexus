@@ -116,10 +116,41 @@ export default function AdminProductsPage() {
                       <span className="text-white font-semibold">${product.price.toFixed(2)}</span>
                     </td>
                     <td className="px-4 py-3">
-                      <Badge variant={product.isSold ? 'sold' : 'success'}>
-                        {product.isSold ? 'Sold' : 'Available'}
-                      </Badge>
-                      {product.isFeatured && <Badge variant="warning" className="ml-1.5">Featured</Badge>}
+                      {product.productType === 'bulk' ? (
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {(() => {
+                            const accts = product.accounts ?? [];
+                            const avail    = accts.filter((a) => a.status === 'available' || (!a.status && !(a as any).sold)).length;
+                            const reserved = accts.filter((a) => a.status === 'reserved').length;
+                            const sold     = accts.filter((a) => a.status === 'sold'      || (!(a.status) && (a as any).sold)).length;
+                            return (
+                              <>
+                                <span className="text-xs font-semibold text-emerald-400">
+                                  {avail} avail
+                                </span>
+                                {reserved > 0 && (
+                                  <span className="text-xs font-semibold text-amber-400">
+                                    · {reserved} rsv
+                                  </span>
+                                )}
+                                {sold > 0 && (
+                                  <span className="text-xs text-gray-600">
+                                    · {sold} sold
+                                  </span>
+                                )}
+                              </>
+                            );
+                          })()}
+                          {product.isFeatured && <Badge variant="warning" className="ml-0.5">★</Badge>}
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1.5">
+                          <Badge variant={product.isSold ? 'sold' : 'success'}>
+                            {product.isSold ? 'Sold' : 'Available'}
+                          </Badge>
+                          {product.isFeatured && <Badge variant="warning">Featured</Badge>}
+                        </div>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-2">

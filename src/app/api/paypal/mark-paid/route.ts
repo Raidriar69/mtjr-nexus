@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/mongodb';
 import Order from '@/models/Order';
+import { reserveAccountsForOrder } from '@/lib/orderCompletion';
 
 export async function POST(req: NextRequest) {
   try {
@@ -23,13 +24,45 @@ export async function POST(req: NextRequest) {
     );
 
     if (result.modifiedCount === 0) {
-      // May already be in waiting_confirmation — that's fine
+      // May already be in waiting_confirmation — that's fine, still try reservation
+      const existingOrders = await Order.find({ _id: { $in: orderIds } }).lean() as any[];
+      for (const order of existingOrders) {
+        if (order.status === 'waiting_confirmation') {
+          await reserveAccountsForOrder(String(order.productId), String(order._id), order.quantity ?? 1);
+        }
+      }
       return NextResponse.json({ success: true, alreadyMarked: true });
     }
 
-    return NextResponse.json({ success: true, updated: result.modifiedCount });
+    // Reserve bulk accounts for each newly-updated order
+    const updatedOrders = await Order.find({
+      _id: { $in: orderIds },
+      status: 'waiting_confirmation',
+    }).lean() as any[];
+
+    const reservationErrors: string[] = [];
+
+    for (const order of updatedOrders) {
+      const ok = await reserveAccountsForOrder(
+        String(order.productId),
+        String(order._id),
+        order.quantity ?? 1
+      );
+      if (!ok) {
+        reservationErrors.push(String(order._id));
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      updated: result.modifiedCount,
+      ...(reservationErrors.length > 0 && {
+        reservationWarning: `Insufficient stock for ${reservationErrors.length} order(s). Admin will need to handle manually.`,
+        affectedOrders: reservationErrors,
+      }),
+    });
   } catch (err: any) {
-    console.error('mark-paid error:', err);
+    console.error('paypal/mark-paid error:', err);
     return NextResponse.json({ error: 'Failed to update order' }, { status: 500 });
   }
 }

@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { connectDB } from '@/lib/mongodb';
 import Order from '@/models/Order';
-import { completeOrder } from '@/lib/orderCompletion';
+import { completeOrder, releaseReservedAccounts } from '@/lib/orderCompletion';
 
 // ── Admin-only auth guard ─────────────────────────────────────────────────────
 async function requireAdmin() {
@@ -58,7 +58,10 @@ export async function PATCH(
       await completeOrder(params.id);
       return NextResponse.json({ success: true, status: 'completed' });
     } else {
-      // Reject — mark status, don't deliver
+      // Reject — release any reserved accounts back to available pool
+      if (order.productId) {
+        await releaseReservedAccounts(String(order.productId), String(order._id));
+      }
       await Order.findByIdAndUpdate(params.id, { status: 'rejected' });
       return NextResponse.json({ success: true, status: 'rejected' });
     }

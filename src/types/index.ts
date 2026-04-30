@@ -17,7 +17,15 @@ export interface Product {
   accountEmail?: string;
   accountPassword?: string;
   accountInstructions?: string;
-  availableStock?: number;  // computed: unsold accounts count for bulk
+  availableStock?: number;  // computed: available accounts count for bulk
+  /** Present in admin API responses for bulk products */
+  accounts?: Array<{
+    _id?: string;
+    email: string;
+    password: string;
+    status: 'available' | 'reserved' | 'sold';
+    orderId?: string;
+  }>;
   isSold: boolean;
   isFeatured: boolean;
   createdAt: string;

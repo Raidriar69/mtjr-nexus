@@ -4,7 +4,10 @@ export interface IBulkAccount {
   _id?: mongoose.Types.ObjectId;
   email: string;
   password: string;
-  sold: boolean;
+  /** Account lifecycle: available → reserved → sold */
+  status: 'available' | 'reserved' | 'sold';
+  /** Populated when status = 'reserved'; cleared on sold or released */
+  orderId?: string;
 }
 
 export interface IProduct extends Document {
@@ -53,9 +56,10 @@ const ProductSchema = new Schema<IProduct>(
       required: true,
     },
     accounts: [{
-      email: { type: String, default: '' },
+      email:   { type: String, default: '' },
       password: { type: String, default: '' },
-      sold: { type: Boolean, default: false },
+      status:  { type: String, enum: ['available', 'reserved', 'sold'], default: 'available' },
+      orderId: { type: String, default: null },
     }],
     deliveryMethod: {
       type: String,

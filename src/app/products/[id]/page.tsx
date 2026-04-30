@@ -16,9 +16,12 @@ async function getProduct(id: string) {
     const raw = await Product.findById(id).lean() as any;
     if (!raw) return null;
     // Compute availableStock from accounts array (server-side only)
+    // Handles both new (status field) and legacy (sold boolean) documents
     const availableStock: number | undefined =
       raw.productType === 'bulk'
-        ? ((raw.accounts ?? []) as any[]).filter((a: any) => !a.sold).length
+        ? ((raw.accounts ?? []) as any[]).filter(
+            (a: any) => a.status === 'available' || (!a.status && !a.sold)
+          ).length
         : undefined;
     // Strip accounts (credentials) before serialising to client
     const { accounts: _accounts, accountEmail: _ae, accountPassword: _ap, ...safe } = raw;

@@ -6,9 +6,12 @@ import { Button } from '@/components/ui/Button';
 import { Product, GAME_CATEGORIES } from '@/types';
 
 interface BulkAccount {
+  _id?: string;
   email: string;
   password: string;
-  sold: boolean;
+  /** Lifecycle: available → reserved → sold */
+  status: 'available' | 'reserved' | 'sold';
+  orderId?: string;
 }
 
 interface ProductFormProps {
@@ -39,13 +42,36 @@ const emptyForm = {
   bulkPasswords: '',
 };
 
+// ── Account status styling ────────────────────────────────────────────────────
+const STATUS_STYLE: Record<string, { dot: string; text: string; label: string }> = {
+  available: { dot: 'bg-emerald-400',  text: 'text-white',       label: 'Available' },
+  reserved:  { dot: 'bg-amber-400',    text: 'text-amber-200',   label: 'Reserved'  },
+  sold:      { dot: 'bg-gray-600',     text: 'text-gray-500',    label: 'Sold'      },
+};
+
+function getStatus(a: BulkAccount): 'available' | 'reserved' | 'sold' {
+  // Handle legacy documents that may not have the status field
+  if (a.status) return a.status;
+  return 'available'; // legacy default
+}
+
 export function ProductForm({ initialData, productId }: ProductFormProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [showAccounts, setShowAccounts] = useState(false);
 
-  const existingAccounts: BulkAccount[] = initialData?.accounts ?? [];
-  const existingUnsold = existingAccounts.filter((a) => !a.sold).length;
-  const existingSold = existingAccounts.filter((a) => a.sold).length;
+  // Normalise existing accounts — handle legacy `sold` boolean field from old documents
+  const existingAccounts: BulkAccount[] = (initialData?.accounts ?? []).map((a: any) => ({
+    _id: a._id,
+    email: a.email,
+    password: a.password,
+    status: a.status ?? (a.sold ? 'sold' : 'available'),
+    orderId: a.orderId,
+  }));
+
+  const countAvailable = existingAccounts.filter((a) => getStatus(a) === 'available').length;
+  const countReserved  = existingAccounts.filter((a) => getStatus(a) === 'reserved').length;
+  const countSold      = existingAccounts.filter((a) => getStatus(a) === 'sold').length;
 
   const [form, setForm] = useState({
     ...emptyForm,
@@ -74,7 +100,7 @@ export function ProductForm({ initialData, productId }: ProductFormProps) {
   }
 
   // Validate & parse the bulk account textareas
-  function parseBulkAccounts(): BulkAccount[] | null {
+  function parseBulkAccounts(): Omit<BulkAccount, '_id'>[] | null {
     const emails = (form.bulkEmails as string)
       .split('\n')
       .map((s) => s.trim())
@@ -91,7 +117,11 @@ export function ProductForm({ initialData, productId }: ProductFormProps) {
       return null;
     }
 
-    return emails.map((email, i) => ({ email, password: passwords[i], sold: false }));
+    return emails.map((email, i) => ({
+      email,
+      password: passwords[i],
+      status: 'available' as const,
+    }));
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -128,7 +158,6 @@ export function ProductForm({ initialData, productId }: ProductFormProps) {
         if (parsed.length > 0) {
           payload.appendAccounts = parsed;
         }
-        // deliveryMethod defaults; clear single-account credentials
         payload.deliveryMethod = 'email_password';
         payload.accountEmail = '';
         payload.accountPassword = '';
@@ -314,20 +343,91 @@ export function ProductForm({ initialData, productId }: ProductFormProps) {
       {/* ── Delivery Details: Bulk ── */}
       {isBulk && (
         <div className="bg-gray-900 border border-violet-500/30 rounded-xl p-5 space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-violet-400 font-semibold text-sm flex items-center gap-2">
-              📦 Bulk Account Import
-            </h3>
+
+          {/* Header + stock summary pill */}
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <h3 className="text-violet-400 font-semibold text-sm">📦 Bulk Account Stock</h3>
             {isEditing && existingAccounts.length > 0 && (
-              <span className="text-xs bg-gray-800 border border-gray-700 rounded-full px-3 py-1 text-gray-400">
-                {existingUnsold} unsold · {existingSold} sold
-              </span>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="flex items-center gap-1.5 text-xs bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-full px-2.5 py-1 font-semibold">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" />
+                  {countAvailable} available
+                </span>
+                {countReserved > 0 && (
+                  <span className="flex items-center gap-1.5 text-xs bg-amber-500/10 border border-amber-500/20 text-amber-400 rounded-full px-2.5 py-1 font-semibold">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />
+                    {countReserved} reserved
+                  </span>
+                )}
+                {countSold > 0 && (
+                  <span className="flex items-center gap-1.5 text-xs bg-gray-700/50 border border-gray-600/30 text-gray-500 rounded-full px-2.5 py-1 font-semibold">
+                    <span className="w-1.5 h-1.5 rounded-full bg-gray-600 inline-block" />
+                    {countSold} sold
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setShowAccounts((v) => !v)}
+                  className="text-xs text-violet-400 hover:text-violet-300 border border-violet-500/30 bg-violet-500/10 rounded-full px-2.5 py-1 transition-colors font-medium"
+                >
+                  {showAccounts ? 'Hide list' : 'View list'}
+                </button>
+              </div>
             )}
           </div>
 
+          {/* ── Color-coded account list ── */}
+          {isEditing && existingAccounts.length > 0 && showAccounts && (
+            <div className="rounded-xl border border-gray-700 overflow-hidden">
+              {/* Legend */}
+              <div className="flex items-center gap-4 px-4 py-2.5 bg-gray-800/80 border-b border-gray-700 text-xs text-gray-500">
+                <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-400" />Available</span>
+                <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-amber-400" />Reserved (awaiting confirmation)</span>
+                <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-gray-600" />Sold</span>
+              </div>
+              {/* Scrollable list */}
+              <div className="max-h-72 overflow-y-auto divide-y divide-gray-800/60">
+                {existingAccounts.map((acct, idx) => {
+                  const st = getStatus(acct);
+                  const style = STATUS_STYLE[st] ?? STATUS_STYLE.available;
+                  return (
+                    <div
+                      key={acct._id ?? idx}
+                      className={`flex items-center gap-3 px-4 py-2.5 text-xs font-mono ${
+                        st === 'sold' ? 'opacity-50' : ''
+                      }`}
+                    >
+                      {/* Status dot */}
+                      <span className={`w-2 h-2 rounded-full flex-shrink-0 ${style.dot}`} />
+                      {/* Row number */}
+                      <span className="text-gray-600 w-6 text-right flex-shrink-0">{idx + 1}</span>
+                      {/* Email */}
+                      <span className={`flex-1 min-w-0 truncate ${style.text}`}>{acct.email}</span>
+                      {/* Password (masked) */}
+                      <span className="text-gray-600 flex-shrink-0">{'•'.repeat(Math.min(acct.password?.length ?? 8, 10))}</span>
+                      {/* Status badge */}
+                      <span className={`flex-shrink-0 text-[10px] font-semibold uppercase tracking-wider ${
+                        st === 'available' ? 'text-emerald-500' :
+                        st === 'reserved'  ? 'text-amber-400'   :
+                                             'text-gray-600'
+                      }`}>
+                        {style.label}
+                        {st === 'reserved' && acct.orderId && (
+                          <span className="ml-1 text-gray-600 normal-case tracking-normal">
+                            #{acct.orderId.slice(-6)}
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           <p className="text-gray-500 text-xs">
             {isEditing
-              ? 'Leave blank to keep existing accounts. Fill in to add more.'
+              ? 'Leave blank to keep existing accounts. Fill in to add more to stock.'
               : 'One email per line, one password per line — counts must match.'}
           </p>
 
@@ -375,6 +475,7 @@ export function ProductForm({ initialData, productId }: ProductFormProps) {
                 {match ? '✓' : '✗'}
                 {emailCount} emails · {passCount} passwords
                 {!match && ' — counts must match'}
+                {match && isEditing && ` — will add ${emailCount} new account${emailCount !== 1 ? 's' : ''}`}
               </div>
             );
           })()}

@@ -49,6 +49,16 @@ export async function POST(req: NextRequest) {
       if (product.isSold) {
         return NextResponse.json({ error: `"${product.title}" is already sold` }, { status: 409 });
       }
+      // Bulk stock check: ensure enough available accounts for the requested qty
+      if (product.productType === 'bulk') {
+        const availableCount = (product.accounts ?? []).filter((a: any) => a.status === 'available').length;
+        if (availableCount < qty) {
+          return NextResponse.json(
+            { error: `Only ${availableCount} account(s) available for "${product.title}", but ${qty} requested` },
+            { status: 409 }
+          );
+        }
+      }
 
       totalUsd += product.price * qty;
       productDetails.push({
