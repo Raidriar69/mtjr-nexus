@@ -5,6 +5,7 @@ import { authOptions } from '@/lib/auth';
 import { Providers } from './providers';
 import { Navbar } from '@/components/layout/Navbar';
 import { Footer } from '@/components/layout/Footer';
+import { ParticleBackground } from '@/components/ui/ParticleBackground';
 import './globals.css';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
@@ -27,9 +28,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang="en" className={inter.variable}>
       <body className="bg-gray-950 text-gray-100 min-h-screen flex flex-col">
+        <ParticleBackground />
         <Providers session={session}>
           <Navbar />
-          <main className="flex-1">{children}</main>
+          <main className="flex-1 relative z-10">{children}</main>
           <Footer />
         </Providers>
       </body>
