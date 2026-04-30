@@ -1,15 +1,17 @@
 'use client';
 import { useEffect, useRef } from 'react';
 
-const COUNT        = 150;
-const MOUSE_RADIUS = 140;
-const MOUSE_FORCE  = 8;
+const COUNT        = 90;   // was 150 — fewer particles = far less draw work
+const MOUSE_RADIUS = 130;
+const MOUSE_FORCE  = 7;
+const FPS_CAP      = 30;   // cap at 30 fps — visually same as 60, half the GPU load
+const FRAME_MS     = 1000 / FPS_CAP;
 
 interface P {
   x: number; y: number;
   vx: number; vy: number;
   baseVy: number;
-  r: number;       // radius
+  r: number;
   alpha: number;
 }
 
@@ -19,21 +21,21 @@ function make(w: number, h: number, scatter = false): P {
     y:      scatter ? Math.random() * h : -Math.random() * 300,
     vx:     (Math.random() - 0.5) * 0.5,
     vy:     0,
-    baseVy: 0.7 + Math.random() * 1.8,
-    r:      1.2 + Math.random() * 2.8,
-    alpha:  0.45 + Math.random() * 0.55,
+    baseVy: 0.6 + Math.random() * 1.6,
+    r:      1.2 + Math.random() * 2.6,
+    alpha:  0.4 + Math.random() * 0.55,
   };
 }
 
 export function ParticleBackground() {
-  const ref  = useRef<HTMLCanvasElement>(null);
-  const mx   = useRef(-9999);
-  const my   = useRef(-9999);
+  const ref = useRef<HTMLCanvasElement>(null);
+  const mx  = useRef(-9999);
+  const my  = useRef(-9999);
 
   useEffect(() => {
     const canvas = ref.current;
     if (!canvas) return;
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', { alpha: true });
     if (!ctx) return;
 
     const resize = () => {
@@ -47,60 +49,68 @@ export function ParticleBackground() {
       make(canvas.width, canvas.height, true)
     );
 
-    let id = 0;
-    const draw = () => {
+    let id    = 0;
+    let lastT = 0;
+    const TAU = Math.PI * 2;
+
+    const draw = (ts: number) => {
+      id = requestAnimationFrame(draw);
+
+      // ── Hard 30fps cap — skip frame if budget not expired ────
+      if (ts - lastT < FRAME_MS) return;
+      lastT = ts;
+
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       for (const p of pts) {
-        // repulsion
+        // Mouse repulsion — avoid sqrt unless inside radius² (cheap early-exit)
         const dx = p.x - mx.current;
         const dy = p.y - my.current;
-        const d  = Math.sqrt(dx * dx + dy * dy);
-        if (d < MOUSE_RADIUS && d > 0) {
+        const d2 = dx * dx + dy * dy;
+        if (d2 < MOUSE_RADIUS * MOUSE_RADIUS && d2 > 0) {
+          const d = Math.sqrt(d2);
           const s = ((MOUSE_RADIUS - d) / MOUSE_RADIUS) ** 2 * MOUSE_FORCE;
           p.vx += (dx / d) * s * 0.15;
           p.vy += (dy / d) * s * 0.10;
         }
 
-        // gravity back to base fall, damp x
+        // Gravity back to base fall speed, damp horizontal drift
         p.vy += (p.baseVy - p.vy) * 0.02;
         p.vx *= 0.97;
         p.x  += p.vx;
         p.y  += p.vy;
 
-        // wrap
-        if (p.x < -20)                  p.x = canvas.width + 10;
-        if (p.x > canvas.width + 20)    p.x = -10;
-        if (p.y > canvas.height + 20)   Object.assign(p, make(canvas.width, canvas.height));
+        // Wrap edges
+        if (p.x < -20)                 p.x = canvas.width + 10;
+        if (p.x > canvas.width + 20)   p.x = -10;
+        if (p.y > canvas.height + 20)  Object.assign(p, make(canvas.width, canvas.height));
 
-        // draw — glowing dot
-        ctx.save();
-        ctx.globalAlpha = p.alpha;
+        // ── Draw: 3 cheap layered solid arcs — NO createRadialGradient ──
+        // createRadialGradient allocates a new object every call — that was
+        // the main perf killer (150 × 60fps = 9,000 allocs/sec).
+        // Layered semi-transparent arcs achieve the same glow look for free.
 
-        // outer glow
-        const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r * 3);
-        g.addColorStop(0,   'rgba(180, 210, 255, 0.9)');
-        g.addColorStop(0.4, 'rgba(140, 190, 255, 0.5)');
-        g.addColorStop(1,   'rgba(100, 160, 255, 0)');
+        // Outer soft halo
         ctx.beginPath();
-        ctx.arc(p.x, p.y, p.r * 3, 0, Math.PI * 2);
-        ctx.fillStyle = g;
+        ctx.arc(p.x, p.y, p.r * 3.5, 0, TAU);
+        ctx.fillStyle = `rgba(150,190,255,${(p.alpha * 0.12).toFixed(3)})`;
         ctx.fill();
 
-        // solid core
-        ctx.globalAlpha = p.alpha * 1.2 > 1 ? 1 : p.alpha * 1.2;
+        // Mid glow ring
         ctx.beginPath();
-        ctx.arc(p.x, p.y, p.r * 0.7, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(220, 235, 255, 1)';
+        ctx.arc(p.x, p.y, p.r * 2, 0, TAU);
+        ctx.fillStyle = `rgba(170,205,255,${(p.alpha * 0.28).toFixed(3)})`;
         ctx.fill();
 
-        ctx.restore();
+        // Bright solid core
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r * 0.75, 0, TAU);
+        ctx.fillStyle = `rgba(220,235,255,${Math.min(p.alpha * 1.2, 1).toFixed(3)})`;
+        ctx.fill();
       }
-
-      id = requestAnimationFrame(draw);
     };
 
-    draw();
+    id = requestAnimationFrame(draw);
 
     const onMove  = (e: MouseEvent) => { mx.current = e.clientX; my.current = e.clientY; };
     const onLeave = ()               => { mx.current = -9999;    my.current = -9999; };
@@ -125,7 +135,6 @@ export function ParticleBackground() {
         height:        '100vh',
         zIndex:        1,
         pointerEvents: 'none',
-        opacity:       1,
       }}
       aria-hidden
     />
