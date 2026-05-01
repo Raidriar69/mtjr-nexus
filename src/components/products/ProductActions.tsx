@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCart } from '@/lib/cart';
+import { useCurrency } from '@/lib/currency';
 import { Product } from '@/types';
 import toast from 'react-hot-toast';
 
@@ -12,6 +13,7 @@ interface Props {
 export function ProductActions({ product }: Props) {
   const router = useRouter();
   const { addItem, isInCart, updateQuantity, items } = useCart();
+  const { formatPrice } = useCurrency();
   const inCart = isInCart(product._id);
 
   const isBulk = product.productType === 'bulk';
@@ -128,7 +130,7 @@ export function ProductActions({ product }: Props) {
           </div>
           {qty > 1 && (
             <p className="text-gray-500 text-xs mt-2 text-center">
-              Total: ${(product.price * qty).toFixed(2)}
+              Total: {formatPrice(product.price * qty)}
             </p>
           )}
         </div>
@@ -139,7 +141,7 @@ export function ProductActions({ product }: Props) {
         onClick={handleBuyNow}
         className="w-full bg-violet-600 hover:bg-violet-500 text-white font-bold py-4 rounded-xl text-lg transition-all duration-200 hover:shadow-[0_0_30px_rgba(139,92,246,0.4)] active:scale-[0.98]"
       >
-        Buy Now — ${(product.price * (isBulk ? qty : 1)).toFixed(2)}
+        Buy Now — {formatPrice(product.price * (isBulk ? qty : 1))}
       </button>
 
       {/* Add to Cart — secondary */}

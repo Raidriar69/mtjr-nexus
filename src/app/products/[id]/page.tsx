@@ -3,6 +3,7 @@ import { connectDB } from '@/lib/mongodb';
 import Product from '@/models/Product';
 import { Badge } from '@/components/ui/Badge';
 import { ProductActions } from '@/components/products/ProductActions';
+import { ProductPrice } from '@/components/products/ProductPrice';
 import { ReviewSection } from '@/components/products/ReviewSection';
 import type { Metadata } from 'next';
 
@@ -167,13 +168,8 @@ export default async function ProductDetailPage({ params }: Props) {
                   )}
                 </div>
 
-                {/* Price */}
-                <div className="flex items-baseline gap-3 mb-5">
-                  <span className="text-4xl font-black text-white">${product.price.toFixed(2)}</span>
-                  {product.originalPrice && product.originalPrice > product.price && (
-                    <span className="text-gray-600 text-xl line-through">${product.originalPrice.toFixed(2)}</span>
-                  )}
-                </div>
+                {/* Price — client component handles currency conversion */}
+                <ProductPrice price={product.price} originalPrice={product.originalPrice} />
 
                 {/* Action buttons */}
                 <ProductActions product={product} />

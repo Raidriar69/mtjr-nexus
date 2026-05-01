@@ -3,10 +3,12 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useCart } from '@/lib/cart';
+import { useCurrency } from '@/lib/currency';
 
 export default function CartPage() {
   const router = useRouter();
   const { items, removeItem, updateQuantity, clearCart, itemCount } = useCart();
+  const { formatPrice, currency } = useCurrency();
   const [soldIds, setSoldIds] = useState<Set<string>>(new Set());
   const [validating, setValidating] = useState(false);
 
@@ -140,9 +142,9 @@ export default function CartPage() {
                   {/* Price + remove */}
                   <div className="flex flex-col items-end justify-between flex-shrink-0">
                     <div className="text-right">
-                      <span className="text-white font-bold text-lg">${(item.price * item.quantity).toFixed(2)}</span>
+                      <span className="text-white font-bold text-lg">{formatPrice(item.price * item.quantity)}</span>
                       {item.quantity > 1 && (
-                        <p className="text-gray-600 text-xs">${item.price.toFixed(2)} each</p>
+                        <p className="text-gray-600 text-xs">{formatPrice(item.price)} each</p>
                       )}
                     </div>
                     <button
@@ -182,7 +184,7 @@ export default function CartPage() {
                       {item.title}
                       {item.quantity > 1 && <span className="text-gray-600"> ×{item.quantity}</span>}
                     </span>
-                    <span className="text-white font-medium flex-shrink-0">${(item.price * item.quantity).toFixed(2)}</span>
+                    <span className="text-white font-medium flex-shrink-0">{formatPrice(item.price * item.quantity)}</span>
                   </div>
                 ))}
                 {soldItems.length > 0 && (
@@ -195,9 +197,9 @@ export default function CartPage() {
               <div className="border-t border-gray-800 pt-4 mb-6">
                 <div className="flex justify-between items-baseline">
                   <span className="text-gray-400">Total</span>
-                  <span className="text-white font-black text-2xl">${total.toFixed(2)}</span>
+                  <span className="text-white font-black text-2xl">{formatPrice(total)}</span>
                 </div>
-                <p className="text-gray-600 text-xs mt-1">USD · Instant delivery after payment</p>
+                <p className="text-gray-600 text-xs mt-1">{currency} · Instant delivery after payment</p>
               </div>
 
               {availableItems.length > 0 ? (

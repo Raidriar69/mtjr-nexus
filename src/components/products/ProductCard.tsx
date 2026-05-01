@@ -1,6 +1,7 @@
 'use client';
 import { useRouter } from 'next/navigation';
 import { useCart } from '@/lib/cart';
+import { useCurrency } from '@/lib/currency';
 import { Product } from '@/types';
 import { Badge } from '@/components/ui/Badge';
 import toast from 'react-hot-toast';
@@ -8,6 +9,7 @@ import toast from 'react-hot-toast';
 export function ProductCard({ product }: { product: Product }) {
   const router = useRouter();
   const { addItem, isInCart } = useCart();
+  const { formatPrice } = useCurrency();
 
   const discount =
     product.originalPrice && product.originalPrice > product.price
@@ -124,9 +126,9 @@ export function ProductCard({ product }: { product: Product }) {
 
         <div className="mt-4 pt-3 border-t border-gray-800">
           <div className="flex items-baseline gap-2 mb-3">
-            <span className="text-white font-bold text-xl">${product.price.toFixed(2)}</span>
+            <span className="text-white font-bold text-xl">{formatPrice(product.price)}</span>
             {product.originalPrice && product.originalPrice > product.price && (
-              <span className="text-gray-600 text-sm line-through">${product.originalPrice.toFixed(2)}</span>
+              <span className="text-gray-600 text-sm line-through">{formatPrice(product.originalPrice)}</span>
             )}
           </div>
 
