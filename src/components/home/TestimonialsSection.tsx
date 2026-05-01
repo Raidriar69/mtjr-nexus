@@ -68,6 +68,9 @@ interface TrackProps {
   pxPerSec: number;
 }
 
+const CAROUSEL_FPS    = 30;
+const CAROUSEL_FRAME  = 1000 / CAROUSEL_FPS;
+
 function ScrollTrack({ items, direction, pxPerSec }: TrackProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const trackRef     = useRef<HTMLDivElement>(null);
@@ -91,13 +94,12 @@ function ScrollTrack({ items, direction, pxPerSec }: TrackProps) {
 
   // ── Main animation loop ──────────────────────────────────────────────────
   useEffect(() => {
-    const track = containerRef.current?.querySelector<HTMLDivElement>('[data-track]');
+    const track = trackRef.current;
     if (!track) return;
 
     const init = () => {
       halfW.current = track.scrollWidth / 2;
       if (direction === 'right') pos.current = -halfW.current;
-      track.style.visibility = 'visible';
     };
 
     // Re-measure on resize (e.g. font load, window resize)
@@ -108,6 +110,9 @@ function ScrollTrack({ items, direction, pxPerSec }: TrackProps) {
     let last = performance.now();
 
     const tick = (now: number) => {
+      raf.current = requestAnimationFrame(tick);
+      // 30fps cap — carousel scroll is slow enough that 30fps is imperceptible
+      if (now - last < CAROUSEL_FRAME) return;
       const dt = Math.min(now - last, 50); // clamp to avoid huge jumps after tab switch
       last = now;
 
@@ -133,7 +138,6 @@ function ScrollTrack({ items, direction, pxPerSec }: TrackProps) {
       }
 
       track.style.transform = `translateX(${pos.current}px)`;
-      raf.current = requestAnimationFrame(tick);
     };
 
     raf.current = requestAnimationFrame(tick);
@@ -200,12 +204,10 @@ function ScrollTrack({ items, direction, pxPerSec }: TrackProps) {
       onTouchEnd={endDrag}
       onTouchCancel={endDrag}
     >
-      {/* visibility:hidden until JS sets the initial position to prevent flash */}
       <div
         data-track
         ref={trackRef}
         className="flex will-change-transform"
-        style={{ visibility: 'hidden' }}
       >
         {/* Duplicate items for seamless infinite loop */}
         {[...items, ...items].map((item, idx) => (
